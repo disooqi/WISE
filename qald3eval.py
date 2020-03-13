@@ -19,8 +19,10 @@ import xml.etree.ElementTree as Et
 from xml.dom.minidom import parse
 from ganswer import ask_gAnswer
 from wise import ask_wise
+import gensim.downloader as api
 
 
+word_vectors = api.load("glove-wiki-gigaword-100")  # load pre-trained word-vectors from gensim-data
 def handle_question(question):
     # question_en = question.getElementsByTagName('string')
     for q in question.getElementsByTagName('string'):
@@ -29,7 +31,7 @@ def handle_question(question):
             # print([n for n in q.childNodes if n.nodeType == q.CDATA_SECTION_NODE][0])
             the_question = q.firstChild.data
             # answer = ask_gAnswer(the_question, n_max_answer=1000, n_max_sparql=1000)
-            answer = ask_wise(the_question, n_max_answer=1000)
+            answer = ask_wise(the_question, word_vectors, n_max_answer=1000)
             return answer
             # print(q.firstChild.data, type(q.firstChild.data))
 
@@ -43,7 +45,7 @@ def handle_dbpedia_questions(dbpedia_questions):
     root_element.append(author_comment)
     with open('output/WISE_result_00.jsons', encoding='utf-8', mode='w') as rfobj:
         for i, question in enumerate(questions):
-            if question.attributes["id"].value != '99':
+            if question.attributes["id"].value != '62':
                 continue
             answer = json.loads(handle_question(question))
             answer['id'] = question.attributes["id"].value
@@ -87,5 +89,6 @@ def handle_dbpedia_questions(dbpedia_questions):
 
 
 if __name__ == '__main__':
+
     with parse(r'qald3/dbpedia-test-questions.xml') as dom:
         handle_dbpedia_questions(dom)

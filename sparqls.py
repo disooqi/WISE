@@ -37,24 +37,35 @@ def make_keyword_search_query_with_type(keywords_string, limit=100):
            f"filter (?auxType != {RDFS_CONCEPT}) }} group by  ?uri }} }} LIMIT {limit}"
 
 
-def make_keyword_unordered_search_query_with_type(keywords_string, limit=100):
+def make_keyword_unordered_search_query_with_type(keywords_string, limit=500):
     kws = keywords_string.strip().replace(' ', ' AND ')
-    return f"select  ?uri  ?label  ?type  " \
-           f"where {{ ?uri ?p  ?label . ?label  <bif:contains> '{kws}' . " \
-           f"optional {{ select  ?uri  (MIN(STR(?auxType)) as  ?type) " \
-           f"where {{  ?uri  {RDF_TYPE} ?auxType filter (?auxType !=  {RDFS_CONCEPT}) }} " \
-           f"group by  ?uri  }} }} LIMIT {limit}"
+    return f"select  ?uri  ?label " \
+           f"where {{ ?uri ?p  ?label . ?label  <bif:contains> '{kws}' . }}  LIMIT {limit}"
+
+# def make_keyword_unordered_search_query_with_type(keywords_string, limit=1000):
+#     kws = keywords_string.strip().replace(' ', ' AND ')
+#     return f"select  ?uri  ?label  ?type  " \
+#            f"where {{ ?uri ?p  ?label . ?label  <bif:contains> '{kws}' . " \
+#            f"optional {{ select  ?uri  (MIN(STR(?auxType)) as  ?type) " \
+#            f"where {{  ?uri  {RDF_TYPE} ?auxType filter (?auxType !=  {RDFS_CONCEPT}) }} " \
+#            f"group by  ?uri  }} }} LIMIT {limit}"
 
 
-def make_top_predicates_subj_query(uri, limit=100):
+def make_top_predicates_subj_query(uri, limit=1000):
     return f"select distinct ?p where {{ <{uri}> ?p ?o . }}  LIMIT {limit}"
 
 
-def make_top_predicates_obj_query(uri, limit=100):
+def make_top_predicates_obj_query(uri, limit=1000):
     return f"select ?p ?p2 where {{ ?s ?p <{uri}> . optional {{ ?s ?p2 ?o }} }} LIMIT {limit}"
 
 
-def construct_answers_query(sub_uri, pred_uri, limit=100):
+def construct_yesno_answers_query(sbj_uri, prd_uri, obj_uri):
+    # UNION {{ <{obj_uri}> <{prd_uri}> <{sbj_uri}> }} }}
+    return f"ASK {{ <{sbj_uri}> <{prd_uri}> <{obj_uri}> }}"
+
+
+def construct_answers_query(sub_uri, pred_uri, limit=1000):
+
     return f"select ?o where {{ <{sub_uri}> <{pred_uri}> ?o . }}  LIMIT {limit}"
 
 
