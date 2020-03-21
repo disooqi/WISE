@@ -18,18 +18,14 @@ import os
 import re
 import json
 import operator
-import requests
 import logging
-import numpy as np
 from string import punctuation
 from collections import defaultdict
 from itertools import count, product
-from functools import reduce
 from statistics import mean
 from urllib.parse import urlparse
 from gensim.parsing.preprocessing import remove_stopwords, STOPWORDS
-# from bert_serving.client import BertClient
-from sparqls import (make_keyword_unordered_search_query_with_type, make_top_predicates_subj_query,
+from sparqls import (make_keyword_unordered_search_query_with_type, make_top_predicates_sbj_query,
                      make_top_predicates_obj_query, evaluate_SPARQL_query, construct_answers_query,
                      construct_yesno_answers_query, construct_yesno_answers_query2)
 from allennlp.predictors.predictor import Predictor
@@ -55,17 +51,12 @@ sh.setFormatter(formatter)
 logger2.addHandler(sh)
 logger2.setLevel(logging.DEBUG)
 
-# coreNLP_server_url = 'http://localhost:9000/?properties={"annotators": "ner,openie", "outputFormat": "json"}'
-# # bert_server = BertClient(port=5555, port_out=5556)
+
 
 # ner_predictor2 = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
 # oie_predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/openie-model.2018-08-20.tar.gz")
 
-coreNLP_server_url = ''
-oie_predictor = ''
-
 table = str.maketrans('', '', punctuation)
-
 
 class Wise:
     """A Natural Language Platform For Querying RDF-Based Graphs
@@ -98,10 +89,8 @@ class Wise:
         return self._current_question
 
     @question.setter
-    def question(self, value):
-        if value not in Question.answer_types:
-            raise ValueError(f"Question should has one of the following types {Question.answer_types}")
-        self._current_question = value
+    def question(self, value: str):
+        self._current_question = Question(question_text=value)
 
     def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int =None):
         """WISE pipeline
@@ -114,11 +103,11 @@ class Wise:
 
 
         """
-        question = Question(question_text=question_text, question_id=question_id, answer_type=answer_type)
-        logger.info(f'\n{"<NEW QUESTION>" * 10}\n[Question:] {question.text},\n')
-        self._current_question = question
+        self.question = question_text
+        # self.question.id = question_id
+        self.question.answer_type = answer_type
+        logger.info(f'\n{"<NEW QUESTION>" * 10}\n[Question:] {self.question.text},\n')
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
-
         self.detect_question_and_answer_type()
         self.rephrase_question()
         self.process_question()
@@ -126,10 +115,9 @@ class Wise:
         self.extract_possible_V_and_E()
         self.construct_star_queries()
         self.merge_star_queries()
-        # self.evaluate_star_queries()
+        answers = self.evaluate_star_queries()
 
-        answer = ''
-        return answer
+        return answers
 
     def detect_question_and_answer_type(self):
         # question_text = question_text.lower()
@@ -285,10 +273,16 @@ class Wise:
                 vertices[v_URI]['noun_phrase'] = noun_phrase  # noun phrase not v (please change the variable name)
                 vertices[v_URI]['relations'] = dict()
 
-                prd_sparql = make_top_predicates_subj_query(v_URI, limit=100)
+                prd_sparql = make_top_predicates_sbj_query(v_URI, limit=100)
                 prd_result = json.loads(evaluate_SPARQL_query(prd_sparql))
-
                 prd_uris, prd_names = self.__class__.extract_predicate_names(prd_result['results']['bindings'])
+
+                prd_sparql = make_top_predicates_obj_query(v_URI, limit=100)
+                prd_result = json.loads(evaluate_SPARQL_query(prd_sparql))
+                prd_obj_uris, prd_obj_names = self.__class__.extract_predicate_names(prd_result['results']['bindings'])
+
+                prd_uris.extend(prd_obj_uris)
+                prd_names.extend(prd_obj_names)
 
                 # TODO you could compute the star query weight from here
                 for relation in self.question.possible_predicates:
@@ -316,28 +310,19 @@ class Wise:
                 if prd_set in prd_sets:
                     continue
                 for p_URI in comb_dict.keys():
-                    # star_query_triple_patterns.append(f"<{v_URI}> <{p_URI}> ?O{next(var_counter)}")
                     star_query_triple_patterns.append((v_URI, p_URI, f'?O{next(var_counter)}'))
                 else:
                     prd_sets.append(prd_set)
-                    # triple_patterns = ' . '.join(star_query_triple_patterns)
-                    # if not triple_patterns.strip():
-                    #     continue
-                    # star_query = (f"select * where  {{ {triple_patterns} }}", mean(comb_dict.values()))
-
                     data_points = comb_dict.values()
                     if data_points:
                         star_queries.append((star_query_triple_patterns, mean(data_points)))
                     else:
-                        print("<<<< There is no data points >>>>", star_query_triple_patterns)
+                        logger2.debug(f"<<<< There is no data points >>>> {star_query_triple_patterns}")
             else:
                 star_queries.sort(key=operator.itemgetter(1), reverse=True)
                 self.question.VsEs[v_URI]['star_queries'] = star_queries
                 logger.info(f'[STAR QUERIES <{v_URI}>:] {star_queries},\n')
                 # In merging the star queries should come from different Named Entities not from different Vs
-        # else:
-        #     print(self.question.VsEs)
-            # self.question star_queries
 
     def merge_star_queries(self):
         noun_phrases = self.question.noun_phrases
@@ -350,9 +335,6 @@ class Wise:
             else:
                 possible_star_queries_different_noun_phrases[noun_phrase] = alternative_star_queries_for_same_NP
 
-        # else:
-        #     print(possible_star_queries_different_noun_phrases)
-
         # list of different v_URIs for each noun phrase
         triple_lists = possible_star_queries_different_noun_phrases.values()
         j = list()
@@ -360,7 +342,6 @@ class Wise:
             j.append(l.keys())
         else:
             f = list(product(*j))
-            # print(f)
 
         final_queries = list()
         x = count(0)
@@ -378,12 +359,21 @@ class Wise:
                 final_queries.append(query)
                 logger2.debug(query)
                 logger.info(f"[FINAL QUERY ({next(x)}):] {query}")
-
-        # for v_URI, v in Vs.items():
-        #     noun_phrases[]
+        else:
+            self.question.answer_sparqls = final_queries
 
     def evaluate_star_queries(self):
-        pass
+        possible_answers = list()
+        for i, query in enumerate(self.question.answer_sparqls):
+            result = evaluate_SPARQL_query(query)
+            logger2.debug(f"[RAW RESULT FROM VIRTUOSO:] {result}")
+            v_result = json.loads(result)
+            for binding in v_result['results']['bindings']:
+                for var, v in binding.items():
+                    uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
+                    possible_answers.append(uri)
+                    logger.info(f"[POSSIBLE ANSWER {i+1}:] {uri}")
+        return possible_answers[:self._n_max_answers]
 
     @staticmethod
     def _check_if_any_two_star_queries_share_a_predicate(star_queries: list):
@@ -400,7 +390,7 @@ class Wise:
                 for obj_uri in prds[triple[1]]:
                     if obj_uri[0] != triple[0]:
                         flag = True
-                        star_query.append(f"<{triple[0]}> <{triple[1]}> <{obj_uri}>")
+                        star_query.append(f"<{triple[0]}> <{triple[1]}> <{obj_uri[0]}>")
                 else:
                     if not flag:
                         star_query.append(f"<{triple[0]}> <{triple[1]}> {triple[2]}")
@@ -485,6 +475,16 @@ class Wise:
             resource_URIs.append(resource_URI)
             resource_names.append(resource_name)
         return resource_URIs, resource_names
+
+    @staticmethod
+    def extract_resource_name_from_uri(uri: str):
+        resource_URI = uri
+        uri_path = urlparse(resource_URI).path
+        resource_name = os.path.basename(uri_path)
+        resource_name = re.sub(r'(:|_|\(|\))', ' ', resource_name)
+        # resource_name = re.sub(r'^Category:', '', resource_name)
+        # TODO: check for URI validity
+        return resource_URI, resource_name
 
     @staticmethod
     def extract_predicate_names(result_bindings):

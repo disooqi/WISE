@@ -15,7 +15,14 @@ __status__ = "debug"
 __date__ = "2020-03-05"
 
 import requests
+import logging
 
+formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
+logger2 = logging.getLogger("Dos logger")
+sh = logging.StreamHandler()
+sh.setFormatter(formatter)
+logger2.addHandler(sh)
+logger2.setLevel(logging.DEBUG)
 
 KEYWORD_SEARCH_QUERY_VAR_URI = "uri"
 KEYWORD_SEARCH_QUERY_VAR_PRED = "pred"
@@ -52,12 +59,13 @@ def make_keyword_unordered_search_query_with_type(keywords_string: str, limit=50
 #            f"group by  ?uri  }} }} LIMIT {limit}"
 
 
-def make_top_predicates_subj_query(uri, limit=1000):
+def make_top_predicates_sbj_query(uri, limit=1000):
     return f"select distinct ?p where {{ <{uri}> ?p ?o . }}  LIMIT {limit}"
 
 
 def make_top_predicates_obj_query(uri, limit=1000):
-    return f"select ?p ?p2 where {{ ?s ?p <{uri}> . optional {{ ?s ?p2 ?o }} }} LIMIT {limit}"
+    # return f"select ?p ?p2 where {{ ?s ?p <{uri}> . optional {{ ?s ?p2 ?o }} }} LIMIT {limit}"
+    return f"select distinct ?p where {{ ?s ?p <{uri}> . }} LIMIT {limit}"
 
 
 def construct_yesno_answers_query(sbj_uri, prd_uri, obj_uri):
@@ -89,6 +97,9 @@ def evaluate_SPARQL_query(query: str, fmt='application/json'):
     }
 
     query_response = requests.get(f'https://dbpedia.org/sparql', params=payload)
+    logger2.debug(f"[STATUS CODE FOR SPARQL EVAL:] {query_response.status_code}")
+    if query_response.status_code in [414]:
+        return '{"results":{"bindings": [] } }'
     return query_response.text
 
 
