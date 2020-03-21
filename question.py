@@ -11,7 +11,6 @@ class Question:
         self._query_graph = nx.DiGraph()
         self._question_type = None
         self._answer_type = answer_type
-        self._answer_sparql = None
         self._parse_components = None
 
     def add_relation(self):
