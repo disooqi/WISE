@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 http://vos.openlinksw.com/owiki/wiki/VOS/VOSSparqlProtocol#SPARQL%20Service%20Endpoint
+http://vos.openlinksw.com/owiki/wiki/VOS/VOSSparqlProtocol#HTTP%20Response%20Formats
 """
 __author__ = "Mohamed Eldesouki"
 __copyright__ = "Copyright 2020-29, GINA CODY SCHOOL OF ENGINEERING AND COMPUTER SCIENCE, CONCORDIA UNIVERSITY"
@@ -31,15 +32,15 @@ some_text = 'Barack Obama'
 resource_URI = 'http://dbpedia.org/resource/United_States_Secretary_of_the_Interior'
 
 
-def make_keyword_search_query_with_type(keywords_string, limit=100):
+def make_keyword_search_query_with_type(keywords_string: str, limit=100):
     return f"select ?uri ?label ?type where {{ ?uri ?p ?label . ?label  <bif:contains> '{keywords_string}' . " \
            f"{{ select ?uri (MIN(STR(?auxType)) as ?type) where {{  ?uri {RDF_TYPE}  ?auxType  " \
            f"filter (?auxType != {RDFS_CONCEPT}) }} group by  ?uri }} }} LIMIT {limit}"
 
 
-def make_keyword_unordered_search_query_with_type(keywords_string, limit=500):
-    kws = keywords_string.strip().replace(' ', ' AND ')
-    return f"select  ?uri  ?label " \
+def make_keyword_unordered_search_query_with_type(keywords_string: str, limit=500):
+    kws = ' AND '.join(keywords_string.strip().split())
+    return f"select distinct ?uri  ?label " \
            f"where {{ ?uri ?p  ?label . ?label  <bif:contains> '{kws}' . }}  LIMIT {limit}"
 
 # def make_keyword_unordered_search_query_with_type(keywords_string, limit=1000):
@@ -64,12 +65,18 @@ def construct_yesno_answers_query(sbj_uri, prd_uri, obj_uri):
     return f"ASK {{ <{sbj_uri}> <{prd_uri}> <{obj_uri}> }}"
 
 
-def construct_answers_query(sub_uri, pred_uri, limit=1000):
+def construct_yesno_answers_query2(sbj_uri, prd_uris, obj_uri):
+    disj = list()
+    for prd_uri in prd_uris:
+        disj.append(f"{{ <{obj_uri}> <{prd_uri}> <{sbj_uri}> }}")
+    return f"ASK {{ {' UNION '.join(disj)} }}"
 
+
+def construct_answers_query(sub_uri, pred_uri, limit=1000):
     return f"select ?o where {{ <{sub_uri}> <{pred_uri}> ?o . }}  LIMIT {limit}"
 
 
-def evaluate_SPARQL_query(query, fmt='application/json'):
+def evaluate_SPARQL_query(query: str, fmt='application/json'):
     payload = {
         'default-graph-uri': '',
         'query': query,
