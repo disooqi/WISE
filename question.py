@@ -1,3 +1,4 @@
+import json
 import networkx as nx
 
 
@@ -12,6 +13,14 @@ class Question:
         self._question_type = None
         self._answer_type = answer_type
         self._parse_components = None
+        self._possible_answers = list()
+
+    def add_possible_answer(self, **kwargs):
+        self._possible_answers.append(Answer(**kwargs))
+
+    @property
+    def possible_answers(self):
+        return self._possible_answers
 
     def add_relation(self):
         pass
@@ -60,6 +69,39 @@ class Question:
     @parse_components.setter
     def parse_components(self, value):
         self._parse_components = value
+
+
+class Answer:
+    def __init__(self, **kwargs):
+        # self._sparql = kwargs.get('sparql', None)
+        # self._question = kwargs.get('question', None)
+        self._answer = dict({
+            "question": None,
+            # "question_id": kwargs['question_id'],  # question_id
+            "results": None,  # here are the bindings returned from the triple store
+            "status": None,  # same as the http request status, and actually it does not make sense and I might remove
+            "vars": None,
+            "sparql": None
+        })
+        for key, value in kwargs.items():
+            self._answer[key] = value
+
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            self._answer[key] = value
+
+    def json(self):
+        return self._answer
+
+
+
+    @property
+    def sparql(self):
+        return self._answer['sparql']
+
+    @sparql.setter
+    def sparql(self, value):
+        self._answer['sparql'] = value
 
 
 if __name__ == '__main__':

@@ -17,9 +17,8 @@ import json
 import time
 from wise import Wise
 from pprint import pprint
-# import gensim.downloader as api
-from question import Question
 from termcolor import colored, cprint
+from itertools import count
 
 the_39_question_ids = (1, 3, 8, 9, 11, 13, 14, 15, 16, 17, 21, 23, 24, 26, 27, 28, 30, 31, 33, 35, 37, 39, 40, 41, 43,
                        47, 54, 56, 61, 62, 64, 68, 75, 83, 85, 92, 93, 96, 99)
@@ -35,6 +34,7 @@ if __name__ == '__main__':
         qald6_testset = json.load(f)
     dataset_id = qald6_testset['dataset']['id']
     WISE = Wise()
+    count39 = count(0)
     for question in qald6_testset['questions']:
         question_id = question['id']
         answer_type = question['answertype']
@@ -46,10 +46,14 @@ if __name__ == '__main__':
         if question_id in the_39_question_ids:
             st = time.time()
             # question_text = 'Which movies starring Brad Pitt were directed by Guy Ritchie?'
-            answer = WISE.ask(question_text=question_text, answer_type=answer_type)
+            answer = WISE.ask(question_text=question_text, answer_type=answer_type, n_max_answers=10)
+
             et = time.time()
             text = colored(f'[{et-st:.2f} sec]', 'yellow', attrs=['reverse', 'blink'])
             cprint(f"{question_text} {text}")
+            qc = next(count39)
+            break
+
 
 
 

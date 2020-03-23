@@ -15,14 +15,25 @@ __date__ = "2020-03-10"
 
 import json
 import time
+import logging
 import xml.etree.ElementTree as Et
 from xml.dom.minidom import parse
 from ganswer import ask_gAnswer
-from wise import ask_wise
+from wise import Wise
 import gensim.downloader as api
 
+formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
+# LOGGER 1 for Info, Warning and Errors
+logger = logging.getLogger(__name__)
+file_handler = logging.FileHandler('wise.log')
+file_handler.setFormatter(formatter)
+file_handler.setLevel(logging.DEBUG)
+logger.addHandler(file_handler)
+logger.setLevel(logging.DEBUG)
 
-word_vectors = api.load("glove-wiki-gigaword-100")  # load pre-trained word-vectors from gensim-data
+
+# word_vectors = api.load("glove-wiki-gigaword-100")  # load pre-trained word-vectors from gensim-data
+WISE = Wise()
 def handle_question(question):
     # question_en = question.getElementsByTagName('string')
     for q in question.getElementsByTagName('string'):
@@ -30,9 +41,12 @@ def handle_question(question):
         if q.getAttribute('lang') == "en":
             # print([n for n in q.childNodes if n.nodeType == q.CDATA_SECTION_NODE][0])
             the_question = q.firstChild.data
-            # answer = ask_gAnswer(the_question, n_max_answer=1000, n_max_sparql=1000)
-            answer = ask_wise(the_question, word_vectors, n_max_answer=1000)
+            # g_answer = ask_gAnswer(the_question, n_max_answer=1000, n_max_sparql=1000)
+            wise_answers = WISE.ask(the_question, n_max_answers=1)
+            answer = wise_answers[0]
+            print(answer)
             return answer
+
             # print(q.firstChild.data, type(q.firstChild.data))
 
 
@@ -43,11 +57,13 @@ def handle_dbpedia_questions(dbpedia_questions):
 
     author_comment = Et.Comment(f'created by mohamed@eldesouki.ca')
     root_element.append(author_comment)
-    with open('output/WISE_result_00.jsons', encoding='utf-8', mode='w') as rfobj:
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    with open(f'output/WISE_result_{timestr}.jsons', encoding='utf-8', mode='w') as rfobj:
         for i, question in enumerate(questions):
-            if question.attributes["id"].value != '62':
+            print(f"== Question count: {i}, ID {question.attributes['id'].value}== ")
+            if question.attributes["id"].value != '81':
                 continue
-            answer = json.loads(handle_question(question))
+            answer = handle_question(question)
             answer['id'] = question.attributes["id"].value
             answer['answertype'] = question.attributes['answertype'].value
 
@@ -85,10 +101,10 @@ def handle_dbpedia_questions(dbpedia_questions):
             #     break
         else:
             tree = Et.ElementTree(root_element)
-            tree.write("output/WISE_00.xml")
+
+            tree.write(f"output/WISE_{timestr}.xml")
 
 
 if __name__ == '__main__':
-
     with parse(r'qald3/dbpedia-test-questions.xml') as dom:
         handle_dbpedia_questions(dom)

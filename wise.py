@@ -79,7 +79,7 @@ class Wise:
 
     def __init__(self, semantic_afinity_server=None, n_max_answers: int = 100):
         self._ss_server = semantic_afinity_server
-        self._n_max_answers = n_max_answers
+        self._n_max_answers = n_max_answers  # this should affect the number of star queries to be executed against TS
         self._current_question = None
         self.n_max_Vs = 2
         self.n_max_Es = 3
@@ -105,7 +105,9 @@ class Wise:
         """
         self.question = question_text
         # self.question.id = question_id
-        self.question.answer_type = answer_type
+
+        if answer_type:
+            self.question.answer_type = answer_type
         logger.info(f'\n{"<NEW QUESTION>" * 10}\n[Question:] {self.question.text},\n')
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
         self.detect_question_and_answer_type()
@@ -115,9 +117,10 @@ class Wise:
         self.extract_possible_V_and_E()
         self.construct_star_queries()
         self.merge_star_queries()
-        answers = self.evaluate_star_queries()
+        self.evaluate_star_queries()
 
-        return answers
+        answers =  [answer.json() for answer in self.question.possible_answers[:n_max_answers]]
+        logger.info(f"[FINAL ANSWERS:] {answers}")
 
     def detect_question_and_answer_type(self):
         # question_text = question_text.lower()
@@ -182,6 +185,9 @@ class Wise:
         # TODO look at what other tags from dep parser are considered to identify subject and objects
         positions = list(zip(*self.question.parse_components))[4]
         sbj_has_NE, obj_has_NE = False, False
+        #  i = word index, w = word_text, h = Dep_head, d
+        logger2.debug(f"find_possible_noun_phrases_and_relations, {self.question.parse_components}")
+        logger2.debug(f"For Question, {self.question.text}")
         for i, w, h, d, p, pos, t in self.question.parse_components:
             if w.lower() in ['how', 'who', 'when', 'what', 'which', 'where']:
                 continue
@@ -261,7 +267,10 @@ class Wise:
         self.question.noun_phrases = dict()
         for noun_phrase in noun_phrases:
             v_query = make_keyword_unordered_search_query_with_type(noun_phrase, limit=100)
-            v_result = json.loads(evaluate_SPARQL_query(v_query))
+            try:
+                v_result = json.loads(evaluate_SPARQL_query(v_query))
+            except:
+                continue
             v_uris, v_names = self.__class__.extract_resource_name(v_result['results']['bindings'])
 
             v_scores = compute_semantic_similarity_between_single_word_and_word_list(noun_phrase, v_names)
@@ -343,7 +352,7 @@ class Wise:
         else:
             f = list(product(*j))
 
-        final_queries = list()
+        # final_queries = list()
         x = count(0)
         for y in f:  # for each possible merge
             rpt = set()
@@ -356,24 +365,28 @@ class Wise:
                 star_queries_from_all_entities.extend(star_queries)
             else:
                 query = Wise._check_if_any_two_star_queries_share_a_predicate(star_queries_from_all_entities)
-                final_queries.append(query)
+                self.question.add_possible_answer(question=self.question.text, sparql=query)
+                # final_queries.append(query)
                 logger2.debug(query)
                 logger.info(f"[FINAL QUERY ({next(x)}):] {query}")
-        else:
-            self.question.answer_sparqls = final_queries
+        # else:
+            # self.question.answer_sparqls = final_queries
 
     def evaluate_star_queries(self):
-        possible_answers = list()
-        for i, query in enumerate(self.question.answer_sparqls):
-            result = evaluate_SPARQL_query(query)
+        for i, possible_answer in enumerate(self.question.possible_answers):
+            result = evaluate_SPARQL_query(possible_answer.sparql)
             logger2.debug(f"[RAW RESULT FROM VIRTUOSO:] {result}")
-            v_result = json.loads(result)
-            for binding in v_result['results']['bindings']:
-                for var, v in binding.items():
-                    uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
-                    possible_answers.append(uri)
-                    logger.info(f"[POSSIBLE ANSWER {i+1}:] {uri}")
-        return possible_answers[:self._n_max_answers]
+            try:
+                v_result = json.loads(result)
+                possible_answer.update(results=v_result['results'], vars=v_result['head']['vars'])
+
+                for binding in v_result['results']['bindings']:
+                    for var, v in binding.items():
+                        uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
+                        logger.info(f"[POSSIBLE ANSWER {i + 1}:] {uri}")
+            except:
+                print(f" >>>>>>>>>>>>>>>>>>>> What the hell [{result}] <<<<<<<<<<<<<<<<<<")
+
 
     @staticmethod
     def _check_if_any_two_star_queries_share_a_predicate(star_queries: list):
@@ -426,6 +439,7 @@ class Wise:
         tag = ''
 
         head = None
+        h_d = list()
         dep = None
         poss = list()
         position = None
@@ -435,17 +449,28 @@ class Wise:
                 tag = t[2:]
                 if 'obj' in d or 'subj' in d:
                     head, dep = h, d
+                h_d.append((i, h, d))
                 position = p
                 poss.append(pos)
                 entity.append(w)
             elif flag and t.startswith('I-'):
                 if 'obj' in d or 'subj' in d:
                     head, dep = h, d
+                h_d.append((i, h, d))
                 poss.append(pos)
                 entity.append(w)
             elif flag and t.startswith('L-'):
                 if 'obj' in d or 'subj' in d:
                     head, dep = h, d
+                h_d.append((i, h, d))
+                entity_idxs = list(zip(*h_d))[0]
+                if not head and not dep:
+                    for _, _h, _d in h_d:
+                        if h not in entity_idxs:
+                            head, dep = _h, _d
+                            break
+                    else:
+                        head, dep = h, d
                 poss.append(pos)
                 entity.append(w)
                 l2.append((i, ' '.join(entity), head, dep, position, ' '.join(poss), tag))

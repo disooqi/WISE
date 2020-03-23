@@ -17,6 +17,7 @@ __date__ = "2020-03-05"
 import requests
 import logging
 
+
 formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
 logger2 = logging.getLogger("Dos logger")
 sh = logging.StreamHandler()
@@ -97,10 +98,14 @@ def evaluate_SPARQL_query(query: str, fmt='application/json'):
     }
 
     query_response = requests.get(f'https://dbpedia.org/sparql', params=payload)
-    logger2.debug(f"[STATUS CODE FOR SPARQL EVAL:] {query_response.status_code}")
+    # logger2.debug(f"[STATUS CODE FOR SPARQL EVAL:] {query_response.status_code}")
     if query_response.status_code in [414]:
-        return '{"results":{"bindings": [] } }'
+        return '{"head":{"vars":[]}, "results":{"bindings": []}, "status":414 }'
     return query_response.text
+
+
+def process_SPARQL_query_result(query_response: requests.models.Response):
+    pass
 
 
 if __name__ == '__main__':
