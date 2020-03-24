@@ -1,5 +1,6 @@
 import json
 import networkx as nx
+import bisect
 
 
 class Question:
@@ -9,30 +10,34 @@ class Question:
     def __init__(self, question_text, question_id=None, answer_type=None):
         self._id = question_id
         self._question_text = question_text
-        self._query_graph = nx.DiGraph()
+        self.graph = nx.DiGraph()
         self._question_type = None
         self._answer_type = answer_type
         self._parse_components = None
         self._possible_answers = list()
 
+
     def add_possible_answer(self, **kwargs):
+        # bisect.insort(self._possible_answers, Answer(**kwargs))  # it is not going to work because some answers are
+        # inserted without score at first
         self._possible_answers.append(Answer(**kwargs))
 
     @property
     def possible_answers(self):
         return self._possible_answers
 
-    def add_relation(self):
-        pass
+    def add_entity(self, named_entity, **kwargs):
+        self.graph.add_node(named_entity, **kwargs)
 
-    def add_entity(self):
-        pass
+    def add_entity_properties(self, named_entity, **kwargs):
+        for key, value in kwargs.items():
+            self.graph.nodes[named_entity][key] = value
 
-    def add_entity_property(self):
-        pass
+    def add_relation(self, source, destination, **kwargs):
+        self.graph.add_edge(source, destination, **kwargs)
 
-    def add_relation_property(self):
-        pass
+    def add_relation_properties(self, source, destination, **kwargs):
+        self.graph.add_edge(source, destination, **kwargs)
 
     @property
     def question_type(self):
@@ -70,6 +75,14 @@ class Question:
     def parse_components(self, value):
         self._parse_components = value
 
+    @property
+    def entities(self):
+        return list(self.graph.nodes)
+
+    @property
+    def relations(self):
+        return list(self.graph.edges)
+
 
 class Answer:
     def __init__(self, **kwargs):
@@ -86,6 +99,9 @@ class Answer:
         for key, value in kwargs.items():
             self._answer[key] = value
 
+    def __lt__(self, other):
+        return self.score < other.score
+
     def update(self, **kwargs):
         for key, value in kwargs.items():
             self._answer[key] = value
@@ -93,11 +109,13 @@ class Answer:
     def json(self):
         return self._answer
 
-
-
     @property
     def sparql(self):
         return self._answer['sparql']
+
+    @property
+    def score(self):
+        return self._answer['score']
 
     @sparql.setter
     def sparql(self, value):

@@ -21,13 +21,14 @@ import operator
 import logging
 from string import punctuation
 from collections import defaultdict
-from itertools import count, product
+from itertools import count, product, chain, starmap
 from statistics import mean
 from urllib.parse import urlparse
 from gensim.parsing.preprocessing import remove_stopwords, STOPWORDS
 from sparqls import (make_keyword_unordered_search_query_with_type, make_top_predicates_sbj_query,
                      make_top_predicates_obj_query, evaluate_SPARQL_query, construct_answers_query,
-                     construct_yesno_answers_query, construct_yesno_answers_query2)
+                     construct_yesno_answers_query, construct_yesno_answers_query2,
+                     sparql_query_to_get_predicates_when_subj_and_obj_are_known)
 from allennlp.predictors.predictor import Predictor
 # import rdflib # to construct rdf graph and return its equavilant SPARQL query
 # import NetworkX
@@ -83,6 +84,7 @@ class Wise:
         self._current_question = None
         self.n_max_Vs = 2
         self.n_max_Es = 3
+        self.uri_scores = defaultdict(float)
 
     @property
     def question(self):
@@ -108,19 +110,21 @@ class Wise:
 
         if answer_type:
             self.question.answer_type = answer_type
-        logger.info(f'\n{"<NEW QUESTION>" * 10}\n[Question:] {self.question.text},\n')
+        logger.info(f'\n{"<>" * 200}\n[Question:] {self.question.text},\n')
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
         self.detect_question_and_answer_type()
         self.rephrase_question()
         self.process_question()
         self.find_possible_noun_phrases_and_relations()
         self.extract_possible_V_and_E()
-        self.construct_star_queries()
-        self.merge_star_queries()
+        self.generate_star_queries()
         self.evaluate_star_queries()
 
-        answers =  [answer.json() for answer in self.question.possible_answers[:n_max_answers]]
+        answers = [answer.json() for answer in self.question.possible_answers[:n_max_answers]]
+
         logger.info(f"[FINAL ANSWERS:] {answers}")
+
+        return answers
 
     def detect_question_and_answer_type(self):
         # question_text = question_text.lower()
@@ -134,6 +138,7 @@ class Wise:
         if self.question.text.lower().startswith('who was'):
             self.question.question_type = 'person'
             self.question.answer_type = 'resource'
+            self.question.add_entity('var', question_type=self.question.question_type)
         elif self.question.text.lower().startswith('who is '):
             self.question.question_type = 'person'
             self.question.answer_type = 'resource'
@@ -186,8 +191,6 @@ class Wise:
         positions = list(zip(*self.question.parse_components))[4]
         sbj_has_NE, obj_has_NE = False, False
         #  i = word index, w = word_text, h = Dep_head, d
-        logger2.debug(f"find_possible_noun_phrases_and_relations, {self.question.parse_components}")
-        logger2.debug(f"For Question, {self.question.text}")
         for i, w, h, d, p, pos, t in self.question.parse_components:
             if w.lower() in ['how', 'who', 'when', 'what', 'which', 'where']:
                 continue
@@ -213,11 +216,11 @@ class Wise:
                 s = filter(lambda x: x[6] != 'O', s)
             if obj_has_NE:
                 o = filter(lambda x: x[6] != 'O', o)
-            s = list(map(lambda x: x[1], s))
-            o = list(map(lambda x: x[1], o))
-            # reduce()
-            self.question.possible_subjects = s
-            self.question.possible_objects = o
+
+            entity = ''
+            for i, w, h, d, p, pos, t in list(s)+list(o):
+                self.question.add_entity(w, pos=pos, entity_type=t)
+                entity = w
 
             one_relation = list()
             relations = list()
@@ -243,10 +246,9 @@ class Wise:
                 if rr:
                     relations.append(rr)
 
-            self.question.possible_predicates = relations
-            logger.info(f'[POSSIBLE SUBJs:]{s}\n')  # TODO rename to possible noun phrase subject
-            logger.info(f'[POSSIBLE OBJs:]{o}\n')  # TODO rename to possible noun phrase subject
-            logger.info(f'[POSSIBLE RELATIONS:]{relations}\n')
+            for relation in relations:
+                self.question.add_relation(entity, 'var', relation=relation)
+            logger.info(f'[GRAPH:] {self.question.entities} <===>  {self.question.relations}\n')  # TODO rename to possible noun phrase subject
 
     def extract_possible_V_and_E(self):
         def compute_semantic_similarity_between_single_word_and_word_list(word, word_list):
@@ -261,156 +263,90 @@ class Wise:
                     scores.append(score)
             else:
                 return scores
-
-        noun_phrases = set(self.question.possible_subjects + self.question.possible_objects)
-        vertices = defaultdict(dict)
-        self.question.noun_phrases = dict()
-        for noun_phrase in noun_phrases:
-            v_query = make_keyword_unordered_search_query_with_type(noun_phrase, limit=100)
-            try:
-                v_result = json.loads(evaluate_SPARQL_query(v_query))
-            except:
+        for entity in self.question.entities:
+            if entity == 'var':
+                self.question.add_entity_properties(entity, uris=[])
                 continue
-            v_uris, v_names = self.__class__.extract_resource_name(v_result['results']['bindings'])
+            entity_query = make_keyword_unordered_search_query_with_type(entity, limit=100)
 
-            v_scores = compute_semantic_similarity_between_single_word_and_word_list(noun_phrase, v_names)
-            v_URIs_with_scores = list(zip(v_uris, v_scores))
-            v_URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-            self.question.noun_phrases[noun_phrase] = v_URIs_with_scores[:self.n_max_Vs]
-            for v_URI, score in v_URIs_with_scores[:self.n_max_Vs]:
-                vertices[v_URI]['score'] = score
-                vertices[v_URI]['noun_phrase'] = noun_phrase  # noun phrase not v (please change the variable name)
-                vertices[v_URI]['relations'] = dict()
+            try:
+                entity_result = json.loads(evaluate_SPARQL_query(entity_query))
+            except:
+                logger.error(f"Error at 'extract_possible_V_and_E' method with v_query value of {entity_query} ")
+                continue
 
-                prd_sparql = make_top_predicates_sbj_query(v_URI, limit=100)
-                prd_result = json.loads(evaluate_SPARQL_query(prd_sparql))
-                prd_uris, prd_names = self.__class__.extract_predicate_names(prd_result['results']['bindings'])
+            uris, names = self.__class__.extract_resource_name(entity_result['results']['bindings'])
+            scores = compute_semantic_similarity_between_single_word_and_word_list(entity, names)
 
-                prd_sparql = make_top_predicates_obj_query(v_URI, limit=100)
-                prd_result = json.loads(evaluate_SPARQL_query(prd_sparql))
-                prd_obj_uris, prd_obj_names = self.__class__.extract_predicate_names(prd_result['results']['bindings'])
+            URIs_with_scores = list(zip(uris, scores))
+            URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
+            self.uri_scores.update(URIs_with_scores)
+            URIs_sorted = list(zip(*URIs_with_scores))[0]
+            URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Vs]
 
-                prd_uris.extend(prd_obj_uris)
-                prd_names.extend(prd_obj_names)
+            self.question.add_entity_properties(entity, uris=URIs_chosen)
 
-                # TODO you could compute the star query weight from here
-                for relation in self.question.possible_predicates:
-                    prd_scores = compute_semantic_similarity_between_single_word_and_word_list(relation, prd_names)
-                    prd_URIs_with_scores = list(zip(prd_uris, prd_scores))
-                    prd_URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-                    vertices[v_URI]['relations'][relation] = prd_URIs_with_scores[:self.n_max_Es]
+            logger.info(f"[URIs for Entity '{entity}':] {URIs_chosen}")
 
-        logger.info(f'[VERTICES AND EDGES:] {vertices},\n')
-        self.question.VsEs = vertices
-        logger.info(f'[STAR QUERY COMPONENTS:] {vertices},\n')
+        # Find E for all relations
+        for (source, destination, relation) in self.question.graph.edges.data('relation'):
+            source_URIs = self.question.graph.nodes[source]['uris']
+            destination_URIs = self.question.graph.nodes[destination]['uris']
+            combinations = get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=True)
 
-    def construct_star_queries(self):
-        Vs = self.question.VsEs
-        prd_sets = list()
-        var_counter = count(1)
-        for v_URI, v in Vs.items():
-            star_queries = list()
-            Es = v['relations'].values()
-            possible_prd_combinations = product(*Es)
-            for comb in possible_prd_combinations:
-                comb_dict = dict(comb)
-                star_query_triple_patterns = list()
-                prd_set = set(comb_dict.keys())
-                if prd_set in prd_sets:
-                    continue
-                for p_URI in comb_dict.keys():
-                    star_query_triple_patterns.append((v_URI, p_URI, f'?O{next(var_counter)}'))
-                else:
-                    prd_sets.append(prd_set)
-                    data_points = comb_dict.values()
-                    if data_points:
-                        star_queries.append((star_query_triple_patterns, mean(data_points)))
-                    else:
-                        logger2.debug(f"<<<< There is no data points >>>> {star_query_triple_patterns}")
+            uris, names = list(), list()
+            if source == 'var' or destination == 'var':
+                for uri in combinations:
+                    uris1, names1 = self._get_predicates_and_their_names(subj=uri)
+                    uris2, names2 = self._get_predicates_and_their_names(obj=uri)
+                    uris.extend(uris1+uris2)
+                    names.extend(names1+names2)
             else:
-                star_queries.sort(key=operator.itemgetter(1), reverse=True)
-                self.question.VsEs[v_URI]['star_queries'] = star_queries
-                logger.info(f'[STAR QUERIES <{v_URI}>:] {star_queries},\n')
-                # In merging the star queries should come from different Named Entities not from different Vs
+                for subj, obj in combinations:
+                    uris, names = self._get_predicates_and_their_names(subj, obj)
 
-    def merge_star_queries(self):
-        noun_phrases = self.question.noun_phrases
-        possible_star_queries_different_noun_phrases = dict()
+            scores = compute_semantic_similarity_between_single_word_and_word_list(relation, names)
+            URIs_with_scores = list(zip(uris, scores))
+            URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
+            self.uri_scores.update(URIs_with_scores)
+            URIs_sorted = list(zip(*URIs_with_scores))[0]
+            URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Es]
+            self.question.add_relation_properties(source, destination, uris=URIs_chosen)
 
-        for noun_phrase, v_URIs in noun_phrases.items():
-            alternative_star_queries_for_same_NP = dict()
-            for v_URI, score in v_URIs:
-                alternative_star_queries_for_same_NP[v_URI] = self.question.VsEs[v_URI]['star_queries']
-            else:
-                possible_star_queries_different_noun_phrases[noun_phrase] = alternative_star_queries_for_same_NP
+            logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
 
-        # list of different v_URIs for each noun phrase
-        triple_lists = possible_star_queries_different_noun_phrases.values()
-        j = list()
-        for l in triple_lists:
-            j.append(l.keys())
+    def generate_star_queries(self):
+        possible_triples_for_all_relations = list()
+        for source, destination, relation_uris in self.question.graph.edges.data('uris'):
+            source_URIs = self.question.graph.nodes[source]['uris']
+            destination_URIs = self.question.graph.nodes[destination]['uris']
+            node_uris = source_URIs if destination == 'var' else destination_URIs
+
+            possible_triples_for_single_relation = get_combination_of_two_lists(node_uris, relation_uris)
+            possible_triples_for_all_relations.append(possible_triples_for_single_relation)
         else:
-            f = list(product(*j))
-
-        # final_queries = list()
-        x = count(0)
-        for y in f:  # for each possible merge
-            rpt = set()
-            star_queries_from_all_entities = list()
-            for v_URI in y:  # get the star_queries for for each v in y
-                if v_URI in rpt:
-                    continue
-                rpt.add(v_URI)
-                star_queries = self.question.VsEs[v_URI]['star_queries']
-                star_queries_from_all_entities.extend(star_queries)
-            else:
-                query = Wise._check_if_any_two_star_queries_share_a_predicate(star_queries_from_all_entities)
-                self.question.add_possible_answer(question=self.question.text, sparql=query)
-                # final_queries.append(query)
-                logger2.debug(query)
-                logger.info(f"[FINAL QUERY ({next(x)}):] {query}")
-        # else:
-            # self.question.answer_sparqls = final_queries
+            for star_query in product(*possible_triples_for_all_relations):
+                score = sum([self.uri_scores[subj]+self.uri_scores[predicate] for subj, predicate in star_query])
+                query = f"SELECT * WHERE {{ {' . '.join([f'<{subj}> <{predicate}> ?var' for subj, predicate in star_query])} }}"
+                self.question.add_possible_answer(question=self.question.text, sparql=query, score=score)
 
     def evaluate_star_queries(self):
+        self.question.possible_answers.sort(reverse=True)
         for i, possible_answer in enumerate(self.question.possible_answers):
             result = evaluate_SPARQL_query(possible_answer.sparql)
             logger2.debug(f"[RAW RESULT FROM VIRTUOSO:] {result}")
             try:
                 v_result = json.loads(result)
                 possible_answer.update(results=v_result['results'], vars=v_result['head']['vars'])
-
+                answers = list()
                 for binding in v_result['results']['bindings']:
-                    for var, v in binding.items():
-                        uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
-                        logger.info(f"[POSSIBLE ANSWER {i + 1}:] {uri}")
+                    answers.append(self.__class__.extract_resource_name_from_uri(binding['var']['value'])[0])
+                    # for var, v in binding.items():
+                    #     uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
+                else:
+                    logger.info(f"[POSSIBLE ANSWER {i}:] {answers}")
             except:
                 print(f" >>>>>>>>>>>>>>>>>>>> What the hell [{result}] <<<<<<<<<<<<<<<<<<")
-
-
-    @staticmethod
-    def _check_if_any_two_star_queries_share_a_predicate(star_queries: list):
-        prds = defaultdict(list)
-        for triples, score in star_queries.copy():
-            for triple in triples:
-                prds[triple[1]].append((triple[0], triple[2]))
-
-        star_queries_after_merge = list()
-        for star_query_triples, score in star_queries.copy():
-            star_query = list()
-            for triple in star_query_triples:
-                flag = False
-                for obj_uri in prds[triple[1]]:
-                    if obj_uri[0] != triple[0]:
-                        flag = True
-                        star_query.append(f"<{triple[0]}> <{triple[1]}> <{obj_uri[0]}>")
-                else:
-                    if not flag:
-                        star_query.append(f"<{triple[0]}> <{triple[1]}> {triple[2]}")
-            else:
-                star_queries_after_merge.append(f"{{ {' . '.join(star_query)} }}")
-        else:
-            return f"SELECT * WHERE {{ {' UNION '.join(star_queries_after_merge)} }}"
 
     @classmethod
     def _parse_sentence(cls, sentence: str):
@@ -529,6 +465,27 @@ class Wise:
             predicate_URIs.append(predicate_URI)
         return predicate_URIs, predicate_names
 
+    @staticmethod
+    def _get_predicates_and_their_names(subj=None, obj=None):
+        if subj and obj:
+            q = sparql_query_to_get_predicates_when_subj_and_obj_are_known(subj, obj, limit=100)
+            uris, names = Wise.execute_sparql_query_and_get_uri_and_name_lists(q)
+        elif subj:
+            q = make_top_predicates_sbj_query(subj, limit=100)
+            uris, names = Wise.execute_sparql_query_and_get_uri_and_name_lists(q)
+        elif obj:
+            q = make_top_predicates_sbj_query(obj, limit=100)
+            uris, names = Wise.execute_sparql_query_and_get_uri_and_name_lists(q)
+        else:
+            raise Exception
+
+        return uris, names
+
+    @staticmethod
+    def execute_sparql_query_and_get_uri_and_name_lists(q):
+        result = json.loads(evaluate_SPARQL_query(q))
+        return Wise.extract_predicate_names(result['results']['bindings'])
+
 
 def traverse_tree(subtree):
     positions = list()
@@ -543,225 +500,38 @@ def traverse_tree(subtree):
         return positions
 
 
-#
-# def extract_relations_and_entities(question):
-#     entities = list()
-#     relations = list()
-#     corenlp_output = requests.post(coreNLP_server_url, data=question).json()
-#     allannlp_ner_output = ner_predictor.predict(sentence=question)
-#     allannlp_oie_output = oie_predictor.predict(sentence=question)
-#
-#     # seq = ('from', 'O'), ('Bruce Springsteen', 'PERSON'), ('released', 'O'), ....
-#     seq = reformat_allennlp_ner_output(allannlp_ner_output['tags'], allannlp_ner_output['words'])
-#
-#     # AllenNLP entities
-#     for mwe in seq:
-#         if mwe[1] != 'O':
-#             entities.append(mwe[0])
-#     else:
-#         if not entities:
-#             return [], []
-#
-#     # Stanford entities
-#     # if corenlp_output['sentences'][0]['entitymentions']:
-#     #     for entity in corenlp_output['sentences'][0]['entitymentions']:
-#     #         entities.append(entity['text'])
-#     #     else:
-#     #         if not entities:
-#     #             return [], []
-#
-#     if corenlp_output['sentences'][0]['openie']:
-#         for triple in corenlp_output['sentences'][0]['openie']:
-#             if triple['subject'] in entities and triple['object'] in entities:
-#                 relations.append((triple['relation'], triple['subject'], triple['object']))
-#                 break
-#             elif triple['subject'] in entities:
-#                 relations.append((triple['relation'], triple['subject']))
-#                 break
-#             elif triple['object'] in entities:
-#                 relations.append((triple['relation'], triple['object']))
-#                 break
-#         # else:
-#         #     print(question)
-#         #     pprint(f"Entities {entities} do not appear in the OpenIE triples {corenlp_output['sentences'][0]['openie']}")
-#         #     print()
-#
-#     return entities, relations
+def remove_duplicates(sequence):
+    seen = set()
+    return [x for x in sequence if not (x in seen or seen.add(x))]
 
 
-# def extract_relations_and_entities2(question):
-#     entities = list()
-#     relations = list()
-#     allannlp_ner_output = ner_predictor.predict(sentence=question)
-#     allannlp_oie_output = oie_predictor.predict(sentence=question)
-#
-#     # seq = ('from', 'O'), ('Bruce Springsteen', 'PERSON'), ('released', 'O'), ....
-#     seq = reformat_allennlp_ner_output(allannlp_ner_output['tags'], allannlp_ner_output['words'])
-#
-#     # AllenNLP entities
-#     for mwe in seq:
-#         if mwe[1] != 'O':
-#             entities.append(mwe[0])
-#     else:
-#         if not entities:
-#             return [], []
-#
-#     for triple in allannlp_oie_output['verbs']:
-#         ff = triple['description']
-#
-#         print(type(ff))
-#
-#     return entities, relations
-#
-# def construct_information_from_KB(entities=None, relations=None):
-#     answer = ''
-#
-#     assert len(relations) <= 1
-#     if not relations:
-#         return '', ''
-#     if len(relations[0]) == 3:
-#         prd, sbj, obj = relations[0]
-#         prd = remove_stopwords(prd.lower())
-#
-#         sbj_query = make_keyword_unordered_search_query_with_type(sbj, limit=100)
-#         obj_query = make_keyword_unordered_search_query_with_type(obj, limit=100)
-#         sbj_result = json.loads(evaluate_SPARQL_query(sbj_query))
-#         obj_result = json.loads(evaluate_SPARQL_query(obj_query))
-#
-#         sbj_uris, sbj_names = extract_resource_name(sbj_result['results']['bindings'])
-#         obj_uris, obj_names = extract_resource_name(obj_result['results']['bindings'])
-#
-#         # sbj_name_vecs = bert_server.encode(sbj_names)
-#         # obj_name_vecs = bert_server.encode(obj_names)
-#
-#         # sbj_vec = bert_server.encode([sbj])[0]
-#         # obj_vec = bert_server.encode([obj])[0]
-#
-#         # compute normalized dot product as score
-#         # sbj_scores = np.sum(sbj_vec * sbj_name_vecs, axis=1) / np.linalg.norm(sbj_name_vecs, axis=1)
-#         # obj_scores = np.sum(obj_vec * obj_name_vecs, axis=1) / np.linalg.norm(obj_name_vecs, axis=1)
-#
-#         sbj_scores = []
-#         for sbj_name in sbj_names:
-#             try:
-#                 sim = w2v.n_similarity(sbj.lower().split(), sbj_name.lower().split())
-#             except KeyError:
-#                 sim = 0.0
-#             finally:
-#                 sbj_scores.append(sim)
-#
-#         obj_scores = []
-#         for obj_name in obj_names:
-#             try:
-#                 sim = w2v.n_similarity(obj.lower().split(), obj_name.lower().split())
-#             except KeyError:
-#                 sim = 0.0
-#             finally:
-#                 obj_scores.append(sim)
-#
-#         sbj_URIs_with_scores = list(zip(sbj_uris, sbj_scores))
-#         obj_URIs_with_scores = list(zip(obj_uris, obj_scores))
-#
-#         sbj_URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-#         obj_URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-#
-#         logger.info(f'[subject resources:] {sbj_URIs_with_scores[:5]},\n'
-#                     f'[object resources:] {obj_URIs_with_scores[:5]}\n')
-#         # print(sbj_URIs_with_scores[:1], sbj)
-#         # print(obj_URIs_with_scores[:1], obj)
-#
-#         sbj_predicate_sparql = make_top_predicates_subj_query(sbj_URIs_with_scores[0][0], limit=100)
-#         obj_predicate_sparql = make_top_predicates_subj_query(obj_URIs_with_scores[0][0], limit=100)
-#         predicate_sbj_result = json.loads(evaluate_SPARQL_query(sbj_predicate_sparql))
-#         predicate_obj_result = json.loads(evaluate_SPARQL_query(obj_predicate_sparql))
-#
-#         prd_sbj_uris, prd_sbj_names = extract_predicate_names(predicate_sbj_result['results']['bindings'])
-#         prd_obj_uris, prd_obj_names = extract_predicate_names(predicate_obj_result['results']['bindings'])
-#
-#         # prd_sbj_name_vecs = bert_server.encode(prd_sbj_names)
-#         # prd_obj_name_vecs = bert_server.encode(prd_obj_names)
-#
-#         # relational_phrase_vec = bert_server.encode([prd])[0]
-#         # compute normalized dot product as score
-#         # prd_sbj_score = np.sum(relational_phrase_vec * prd_sbj_name_vecs, axis=1) / np.linalg.norm(prd_sbj_name_vecs, axis=1)
-#         # prd_obj_score = np.sum(relational_phrase_vec * prd_obj_name_vecs, axis=1) / np.linalg.norm(prd_obj_name_vecs, axis=1)
-#
-#         prd_sbj_score = []
-#         for prd_sbj_name in prd_sbj_names:
-#             try:
-#                 sim = w2v.n_similarity(prd.lower().split(), prd_sbj_name.lower().split())
-#             except KeyError:
-#                 sim = 0.0
-#             finally:
-#                 prd_sbj_score.append(sim)
-#
-#         prd_obj_score = []
-#         for prd_obj_name in prd_obj_names:
-#             try:
-#                 sim = w2v.n_similarity(prd.lower().split(), prd_obj_name.lower().split())
-#             except KeyError:
-#                 sim = 0.0
-#             finally:
-#                 prd_obj_score.append(sim)
-#
-#         prd_sbj_URIs_with_scores = list(zip(prd_sbj_uris, prd_sbj_score))
-#         prd_obj_URIs_with_scores = list(zip(prd_obj_uris, prd_obj_score))
-#
-#         prd_sbj_URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-#         prd_obj_URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-#
-#         logger.info(f'[subject predicates:] {prd_sbj_URIs_with_scores[:10]},\n'
-#                     f'[object predicates:] {prd_obj_URIs_with_scores[:10]}\n')
-#
-#         return list(zip(*prd_sbj_URIs_with_scores))[0][:5], list(zip(*prd_obj_URIs_with_scores))[0][:5], \
-#                list(zip(*sbj_URIs_with_scores))[0][:5], list(zip(*obj_URIs_with_scores))[0][:5]
-#
-#
-#     if len(relations[0]) == 2:
-#         prd, sbj = relations[0]
-#         sbj_query = make_keyword_unordered_search_query_with_type(sbj)
-#         sbj_result = json.loads(evaluate_SPARQL_query(sbj_query))
-#         sbj_uris, sbj_names = extract_resource_name(sbj_result['results']['bindings'])
-#         # sbj_name_vecs = bert_server.encode(sbj_names)
-#         # sbj_vec = bert_server.encode([sbj])[0]
-#         # compute normalized dot product as score
-#         # sbj_scores = np.sum(sbj_vec * sbj_name_vecs, axis=1) / np.linalg.norm(sbj_name_vecs, axis=1)
-#
-#         sbj_scores = []
-#         for sbj_name in sbj_names:
-#             try:
-#                 sim = w2v.n_similarity(sbj.lower().split(), sbj_name.lower().split())
-#             except KeyError:
-#                 sim = 0.0
-#             finally:
-#                 sbj_scores.append(sim)
-#
-#         sbj_URIs_with_scores = list(zip(sbj_uris, sbj_scores))
-#         sbj_URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-#         # print(sbj_URIs_with_scores[:1], sbj)
-#
-#         sbj_predicate_sparql = make_top_predicates_subj_query(sbj_URIs_with_scores[0][0], limit=100)
-#         predicate_sbj_result = json.loads(evaluate_SPARQL_query(sbj_predicate_sparql))
-#
-#         prd_sbj_uris, prd_sbj_names = extract_predicate_names(predicate_sbj_result['results']['bindings'])
-#
-#         prd_sbj_score = []
-#         for prd_sbj_name in prd_sbj_names:
-#             try:
-#                 sim = w2v.n_similarity(prd.lower().split(), prd_sbj_name.lower().split())
-#             except KeyError:
-#                 sim = 0.0
-#             finally:
-#                 prd_sbj_score.append(sim)
-#
-#         prd_sbj_URIs_with_scores = list(zip(prd_sbj_uris, prd_sbj_score))
-#         prd_sbj_URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-#
-#
-#     else:
-#         return '', ''
-#
+def get_combination_of_two_lists(list1, list2, directed=False, with_reversed=False):
+    lists = [l for l in (list1, list2) if l]
+
+    if len(lists) < 2:
+        return set(chain(list1, list2))
+
+    combinations = product(*lists, repeat=1)
+    combinations_selected = list()
+    combinations_memory = list()
+
+    for comb in combinations:
+        pair = set(comb)
+
+        if len(lists) == 2 and len(pair) == 1:
+            continue
+
+        if not directed and pair in combinations_memory:
+            continue
+        combinations_memory.append(pair)
+        combinations_selected.append(comb)
+    else:
+        if with_reversed:
+            combinations_reversed = [(comb[1], comb[0]) for comb in combinations_selected if len(lists) == 2]
+            combinations_selected.extend(combinations_reversed)
+
+        return set(combinations_selected)
 
 
 if __name__ == '__main__':
-    pass
+    print(get_combination_of_two_lists([50,2,3], [50,3,70], directed=True, with_reversed=True))
