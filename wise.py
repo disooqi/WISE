@@ -74,9 +74,9 @@ class Wise:
             :param n_max_answers: An int, the maximum number of result items return by WISE.
             :rtype: A :class:`Wise <Wise>`
             """
-    ner = Predictor.from_path(
+    ner1 = Predictor.from_path(
         "https://s3-us-west-2.amazonaws.com/allennlp/models/fine-grained-ner-model-elmo-2018.12.21.tar.gz")
-    # ner = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
+    ner2 = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
     parser = Predictor.from_path(
         "https://s3-us-west-2.amazonaws.com/allennlp/models/biaffine-dependency-parser-ptb-2018.08.23.tar.gz")
 
@@ -118,6 +118,9 @@ class Wise:
         self.rephrase_question()
         self.process_question()
         self.find_possible_noun_phrases_and_relations()
+        # if no named entity you should return here
+        if not self.question.graph.nodes:
+            return []
         self.extract_possible_V_and_E()
         self.generate_star_queries()
         self.evaluate_star_queries()
@@ -184,14 +187,13 @@ class Wise:
     def process_question(self):
         parse_components = self.__class__._parse_sentence(self.question.text)
         self.question.parse_components = self.__class__._regroup_named_entities(parse_components)
+        ne_extra = self.__class__.ner2.predict(sentence=self.question.text)
+        self.question.ne_extra = self._get_named_entities(ne_extra['words'], ne_extra['tags'])
 
     def find_possible_noun_phrases_and_relations(self):
         s, pred, o = list(), list(), list()
-        # for t in question.parse_components:
-        #     pprint(t)
         # TODO look at what other tags from dep parser are considered to identify subject and objects
         positions = list(zip(*self.question.parse_components))[4]
-        sbj_has_NE, obj_has_NE = False, False
         #  i = word index, w = word_text, h = Dep_head, d
         for i, w, h, d, p, pos, t in self.question.parse_components:
             if w.lower() in ['how', 'who', 'when', 'what', 'which', 'where']:
@@ -232,6 +234,24 @@ class Wise:
             if rr:
                 relations.append(rr)
 
+        # TODO: This is a hack you need find a better way
+        # if not relations:
+        #     relations.append(self.question.answer_type[0])
+
+        # # TODO: This is a hack you need find a better way
+        # if not s and not o:
+        #     s.extend(self.question.ne_extra)
+        #     for rel in relations:
+        #         if not s:  # in case no relation
+        #             return
+        #         for e in s:
+        #             if rel in e:
+        #                 continue
+        #         else:
+        #             self.question.add_relation(e, 'var', relation=rel)
+        #     else:
+        #         return
+
         for i, entity, h, d, p, pos, t in s + o:
             self.question.add_entity(entity, pos=pos, entity_type=t)
             for relation in relations:
@@ -254,6 +274,7 @@ class Wise:
                     scores.append(score)
             else:
                 return scores
+
         for entity in self.question.entities:
             if entity == 'var':
                 self.question.add_entity_properties(entity, uris=[])
@@ -302,9 +323,13 @@ class Wise:
             self.uri_scores.update(URIs_with_scores)
             URIs_sorted = list(zip(*URIs_with_scores))[0]
             URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Es]
+
             self.question.add_relation_properties(source, destination, uris=URIs_chosen)
 
             logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
+
+
+
 
     def generate_star_queries(self):
         possible_triples_for_all_relations = list()
@@ -341,7 +366,7 @@ class Wise:
 
     @classmethod
     def _parse_sentence(cls, sentence: str):
-        allannlp_ner_output = cls.ner.predict(sentence=sentence)
+        allannlp_ner_output = cls.ner1.predict(sentence=sentence)
         allannlp_dep_output = cls.parser.predict(sentence=sentence)
 
         words = allannlp_ner_output['words']
@@ -357,6 +382,26 @@ class Wise:
         logger.info(f'[QUESTION PARSE COMPONENTS:] {words_info},\n')
 
         return words_info
+
+    @staticmethod
+    def _get_named_entities(words, tags):
+        named_entities = list()
+        entity = list()
+        for w, t in zip(words, tags):
+            if t.startswith('B-'):
+                entity.append(w)
+            elif t.startswith('I-'):
+                entity.append(w)
+            elif t.startswith('L-'):
+                entity.append(w)
+                named_entities.append(' '.join(entity))
+                entity.clear()
+            elif t.startswith('U-'):
+                named_entities.append(w)
+
+        else:
+            logger.info(f'[NAMED ENTITIES FROM EXTRA RECOGNIZER:] {named_entities},\n')
+            return named_entities
 
     @staticmethod
     def _regroup_named_entities(parse_components):
@@ -419,6 +464,9 @@ class Wise:
             resource_URI = binding['uri']['value']
             uri_path = urlparse(resource_URI).path
             resource_name = os.path.basename(uri_path)
+            dir_name = os.path.dirname(uri_path)
+            if resource_name.startswith('Category:') or not dir_name.endswith('/resource'):
+                continue
             resource_name = re.sub(r'(:|_|\(|\))', ' ', resource_name)
             # resource_name = re.sub(r'^Category:', '', resource_name)
             # TODO: check for URI validity
