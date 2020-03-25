@@ -19,6 +19,7 @@ class Question:
     def add_possible_answer(self, **kwargs):
         # bisect.insort(self._possible_answers, Answer(**kwargs))  # it is not going to work because some answers are
         # inserted without score at first
+
         self._possible_answers.append(Answer(**kwargs))
 
     @property
@@ -87,6 +88,7 @@ class Question:
 class Answer:
     def __init__(self, **kwargs):
         self._answer = dict({
+            "id": id(self),
             "question": None,
             # "question_id": kwargs['question_id'],  # question_id
             "results": None,  # here are the bindings returned from the triple store

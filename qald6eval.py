@@ -43,12 +43,12 @@ if __name__ == '__main__':
     count39 = count(1)
     wise_qald6 = {"dataset": {"id": "qald-6-test-multilingual"}, "questions": []}
     for i, question in enumerate(qald6_testset['questions']):
-        if question['id'] not in the_39_question_ids:
-            continue
+        # if question['id'] not in the_39_question_ids:
+        #     continue
         qc = next(count39)
         # if qc > 1:
         #     break
-        # if question["id"] != '36':
+        # if question["id"] != 1:
         #     continue
 
         # question_text = ''
@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
         st = time.time()
         # question_text = 'Which movies starring Brad Pitt were directed by Guy Ritchie?'
-        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=10)
+        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=5)
 
         all_bindings = list()
         for answer in answers:
@@ -75,7 +75,7 @@ if __name__ == '__main__':
         text = colored(f'[{et-st:.2f} sec]', 'yellow', attrs=['reverse', 'blink'])
         cprint(f"== Question count: {qc}, ID {question['id']}  == {question_text} {text}")
 
-        break
+        # break
 
     with open(f'output/WISE_result_{timestr}.json', encoding='utf-8', mode='w') as rfobj:
         json.dump(wise_qald6, rfobj)

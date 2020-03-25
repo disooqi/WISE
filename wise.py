@@ -21,7 +21,7 @@ import operator
 import logging
 from string import punctuation
 from collections import defaultdict
-from itertools import count, product, chain, starmap
+from itertools import count, product, chain, starmap, zip_longest
 from statistics import mean
 from urllib.parse import urlparse
 from gensim.parsing.preprocessing import remove_stopwords, STOPWORDS
@@ -86,7 +86,7 @@ class Wise:
         self._current_question = None
         self.n_max_Vs = 2
         self.n_max_Es = 3
-        self.uri_scores = defaultdict(float)
+        self.v_uri_scores = defaultdict(float)
 
     @property
     def question(self):
@@ -127,7 +127,7 @@ class Wise:
 
         answers = [answer.json() for answer in self.question.possible_answers[:n_max_answers]]
 
-        logger.info(f"[FINAL ANSWERS:] {answers}")
+        logger.info(f"[FINAL ANSWERS:] {self.question.sparqls}")
 
         return answers
 
@@ -255,26 +255,13 @@ class Wise:
         for i, entity, h, d, p, pos, t in s + o:
             self.question.add_entity(entity, pos=pos, entity_type=t)
             for relation in relations:
-                self.question.add_relation(entity, 'var', relation=relation)
+                self.question.add_relation(entity, 'var', relation=relation, uris=[])
 
         logger2.debug(f"SUBJs: {self.question.graph.nodes}")
         logger2.debug(f"RELATIONS: {list(self.question.graph.edges.data('relation'))}")
         logger.info(f'[GRAPH:] {self.question.entities} <===>  {self.question.relations}\n')
 
     def extract_possible_V_and_E(self):
-        def compute_semantic_similarity_between_single_word_and_word_list(word, word_list):
-            scores = list()
-            score = 0.0
-            for w in word_list:
-                try:
-                    score = w2v.n_similarity(word.lower().split(), w.lower().split())
-                except KeyError:
-                    score = 0.0
-                finally:
-                    scores.append(score)
-            else:
-                return scores
-
         for entity in self.question.entities:
             if entity == 'var':
                 self.question.add_entity_properties(entity, uris=[])
@@ -288,11 +275,11 @@ class Wise:
                 continue
 
             uris, names = self.__class__.extract_resource_name(entity_result['results']['bindings'])
-            scores = compute_semantic_similarity_between_single_word_and_word_list(entity, names)
+            scores = self.__compute_semantic_similarity_between_single_word_and_word_list(entity, names)
 
             URIs_with_scores = list(zip(uris, scores))
             URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-            self.uri_scores.update(URIs_with_scores)
+            self.v_uri_scores.update(URIs_with_scores)
             URIs_sorted = list(zip(*URIs_with_scores))[0]
             URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Vs]
 
@@ -304,32 +291,61 @@ class Wise:
         for (source, destination, relation) in self.question.graph.edges.data('relation'):
             source_URIs = self.question.graph.nodes[source]['uris']
             destination_URIs = self.question.graph.nodes[destination]['uris']
-            combinations = get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=True)
+            combinations = get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=False)
 
             uris, names = list(), list()
-            if source == 'var' or destination == 'var':
+            if destination == 'var':  # 'var' always comes in the destination part
                 for uri in combinations:
-                    uris1, names1 = self._get_predicates_and_their_names(subj=uri)
-                    uris2, names2 = self._get_predicates_and_their_names(obj=uri)
-                    uris.extend(uris1+uris2)
-                    names.extend(names1+names2)
+                    URIs_false, names_false = self._get_predicates_and_their_names(subj=uri)
+                    URIs_true, names_true = self._get_predicates_and_their_names(obj=uri)
+                    URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
+                    URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
+                    URIs_chosen = self.__get_chosen_URIs(relation, URIs_false+URIs_true, names_false+names_true)
+                    self.question.graph[source][destination]['uris'].extend(URIs_chosen)
+                    # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
             else:
-                for subj, obj in combinations:
-                    uris, names = self._get_predicates_and_their_names(subj, obj)
+                for v_uri_1, v_uri_2 in combinations:
+                    URIs_false, names_false = self._get_predicates_and_their_names(v_uri_1, v_uri_2)
+                    URIs_true, names_true = self._get_predicates_and_their_names(v_uri_2, v_uri_1)
+                    URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
+                    URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
+                    URIs_chosen = self.__get_chosen_URIs(relation, URIs_false+URIs_true, names_false+names_true)
+                    self.question.graph[source][destination]['uris'].extend(URIs_chosen)
+                    # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
 
-            scores = compute_semantic_similarity_between_single_word_and_word_list(relation, names)
-            URIs_with_scores = list(zip(uris, scores))
-            URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-            self.uri_scores.update(URIs_with_scores)
-            URIs_sorted = list(zip(*URIs_with_scores))[0]
-            URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Es]
+            # scores = compute_semantic_similarity_between_single_word_and_word_list(relation, names)
+            # URIs_with_scores = list(zip(uris, scores))
+            # URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
+            # self.uri_scores.update(URIs_with_scores)
+            # URIs_sorted = list(zip(*URIs_with_scores))[0]
+            # URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Es]
 
-            self.question.add_relation_properties(source, destination, uris=URIs_chosen)
+
 
             logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
 
+    @staticmethod
+    def __compute_semantic_similarity_between_single_word_and_word_list(word, word_list):
+        scores = list()
+        score = 0.0
+        for w in word_list:
+            try:
+                score = w2v.n_similarity(word.lower().split(), w.lower().split())
+            except KeyError:
+                score = 0.0
+            finally:
+                scores.append(score)
+        else:
+            return scores
 
-
+    def __get_chosen_URIs(self, relation: str, uris: list, names: list):
+        scores = self.__class__.__compute_semantic_similarity_between_single_word_and_word_list(relation, names)
+        # (uri, True) ===>  (uri, True, score)
+        l1, l2 = list(zip(*uris))
+        URIs_with_scores = list(zip(l1, l2, scores))
+        URIs_with_scores.sort(key=operator.itemgetter(2), reverse=True)
+        # self.uri_scores.update(URIs_with_scores)
+        return remove_duplicates(URIs_with_scores)[:self.n_max_Es]
 
     def generate_star_queries(self):
         possible_triples_for_all_relations = list()
@@ -342,13 +358,19 @@ class Wise:
             possible_triples_for_all_relations.append(possible_triples_for_single_relation)
         else:
             for star_query in product(*possible_triples_for_all_relations):
-                score = sum([self.uri_scores[subj]+self.uri_scores[predicate] for subj, predicate in star_query])
-                query = f"SELECT * WHERE {{ {' . '.join([f'<{subj}> <{predicate}> ?var' for subj, predicate in star_query])} }}"
+                score = sum([self.v_uri_scores[subj]+predicate[2] for subj, predicate in star_query])
+
+                triple = [f'?var <{predicate[0]}> <{v_uri}>' if predicate[1] else f'<{v_uri}> <{predicate[0]}> ?var'
+                          for v_uri, predicate in star_query]
+
+                query = f"SELECT * WHERE {{ {' . '.join(triple)} }}"
                 self.question.add_possible_answer(question=self.question.text, sparql=query, score=score)
 
     def evaluate_star_queries(self):
         self.question.possible_answers.sort(reverse=True)
-        for i, possible_answer in enumerate(self.question.possible_answers):
+        qc = count(1)
+        sparqls = list()
+        for i, possible_answer in enumerate(self.question.possible_answers[:self._n_max_answers]):
             result = evaluate_SPARQL_query(possible_answer.sparql)
             # logger2.debug(f"[RAW RESULT FROM VIRTUOSO:] {result}")
             try:
@@ -356,13 +378,20 @@ class Wise:
                 possible_answer.update(results=v_result['results'], vars=v_result['head']['vars'])
                 answers = list()
                 for binding in v_result['results']['bindings']:
-                    answers.append(self.__class__.extract_resource_name_from_uri(binding['var']['value'])[0])
+                    answer = self.__class__.extract_resource_name_from_uri(binding['var']['value'])[0]
+                    answers.append(answer)
+
                     # for var, v in binding.items():
                     #     uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
                 else:
-                    logger.info(f"[POSSIBLE ANSWER {i}:] {answers}")
+                    if v_result['results']['bindings']:
+                        logger.info(f"[POSSIBLE ANSWER {next(qc)}:] {answers}")
+                        sparqls.append(possible_answer.sparql)
+
             except:
                 print(f" >>>>>>>>>>>>>>>>>>>> What the hell [{result}] <<<<<<<<<<<<<<<<<<")
+        else:
+            self.question.sparqls = sparqls
 
     @classmethod
     def _parse_sentence(cls, sentence: str):
