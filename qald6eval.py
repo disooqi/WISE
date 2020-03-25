@@ -46,10 +46,9 @@ if __name__ == '__main__':
         if question['id'] not in the_39_question_ids:
             continue
         qc = next(count39)
-        if qc > 1:
-            break
-        print(f"== Question count: {qc}, ID {question['id']}  == ")
-        # if question.attributes["id"].value != '12':
+        # if qc > 1:
+        #     break
+        # if question["id"] != '36':
         #     continue
 
         # question_text = ''
@@ -74,6 +73,8 @@ if __name__ == '__main__':
 
         et = time.time()
         text = colored(f'[{et-st:.2f} sec]', 'yellow', attrs=['reverse', 'blink'])
+        cprint(f"== Question count: {qc}, ID {question['id']}  == {question_text} {text}")
+
         break
 
     with open(f'output/WISE_result_{timestr}.json', encoding='utf-8', mode='w') as rfobj:

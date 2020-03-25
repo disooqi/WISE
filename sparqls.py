@@ -19,7 +19,7 @@ import logging
 
 
 formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
-logger2 = logging.getLogger("Dos logger")
+logger2 = logging.getLogger("SPARQL logger")
 sh = logging.StreamHandler()
 sh.setFormatter(formatter)
 logger2.addHandler(sh)

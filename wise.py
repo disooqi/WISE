@@ -41,12 +41,13 @@ formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 file_handler = logging.FileHandler('wise.log')
 file_handler.setFormatter(formatter)
-file_handler.setLevel(logging.DEBUG)
+file_handler.setLevel(logging.INFO)
 logger.addHandler(file_handler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # LOGGER 2 for DEBUGGING
 logger2 = logging.getLogger("Dos logger")
+# if not logger.handlers:
 sh = logging.StreamHandler()
 sh.setFormatter(formatter)
 logger2.addHandler(sh)
@@ -75,6 +76,7 @@ class Wise:
             """
     ner = Predictor.from_path(
         "https://s3-us-west-2.amazonaws.com/allennlp/models/fine-grained-ner-model-elmo-2018.12.21.tar.gz")
+    # ner = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
     parser = Predictor.from_path(
         "https://s3-us-west-2.amazonaws.com/allennlp/models/biaffine-dependency-parser-ptb-2018.08.23.tar.gz")
 
@@ -109,7 +111,7 @@ class Wise:
         # self.question.id = question_id
 
         if answer_type:
-            self.question.answer_type = answer_type
+            self.question.answer_datatype = answer_type
         logger.info(f'\n{"<>" * 200}\n[Question:] {self.question.text},\n')
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
         self.detect_question_and_answer_type()
@@ -136,43 +138,43 @@ class Wise:
         # what country
 
         if self.question.text.lower().startswith('who was'):
-            self.question.question_type = 'person'
-            self.question.answer_type = 'resource'
-            self.question.add_entity('var', question_type=self.question.question_type)
+            self.question.answer_type = 'person'
+            self.question.answer_datatype = 'resource'
+            self.question.add_entity('var', question_type=self.question.answer_type)
         elif self.question.text.lower().startswith('who is '):
-            self.question.question_type = 'person'
-            self.question.answer_type = 'resource'
+            self.question.answer_type = 'person'
+            self.question.answer_datatype = 'resource'
         elif self.question.text.lower().startswith('who are '):
-            self.question.question_type = 'person'
-            self.question.answer_type = 'list'
+            self.question.answer_type = 'person'
+            self.question.answer_datatype = 'list'
         elif self.question.text.lower().startswith('who '):  # Who [V]
-            self.question.question_type = 'person'
-            self.question.answer_type = 'resource'  # of list
+            self.question.answer_type = 'person'
+            self.question.answer_datatype = 'resource'  # of list
         elif self.question.text.lower().startswith('how many '):
-            self.question.question_type = 'count'
-            self.question.answer_type = 'number'
+            self.question.answer_type = 'count'
+            self.question.answer_datatype = 'number'
         elif self.question.text.lower().startswith('how much '):
-            self.question.question_type = 'price'
-            self.question.answer_type = 'number'
+            self.question.answer_type = 'price'
+            self.question.answer_datatype = 'number'
         elif self.question.text.lower().startswith('when did '):
-            self.question.question_type = 'date'
             self.question.answer_type = 'date'
+            self.question.answer_datatype = 'date'
         elif self.question.text.lower().startswith('in which '):  # In which [NNS], In which city
-            self.question.question_type = 'person'
-            self.question.answer_type = 'resource'  # of list
+            self.question.answer_type = 'person'
+            self.question.answer_datatype = 'resource'  # of list
         elif self.question.text.lower().startswith('which '):  # which [NNS], which actors
-            self.question.question_type = 'person'
-            self.question.answer_type = 'list'  # of list
+            self.question.answer_type = 'person'
+            self.question.answer_datatype = 'list'  # of list
         elif self.question.text.lower().startswith('where '):  # where do
-            self.question.question_type = 'person'
-            self.question.answer_type = 'resource'  # of list
+            self.question.answer_type = 'person'
+            self.question.answer_datatype = 'resource'  # of list
         elif self.question.text.lower().startswith('show '):  # Show ... all
-            self.question.question_type = 'person'
-            self.question.answer_type = 'list'  # of list
+            self.question.answer_type = 'person'
+            self.question.answer_datatype = 'list'  # of list
         else:
             pass  # 11,13,75
 
-        logger.info(f'[QUESTION TYPE:] {self.question.question_type}, [ANSWER TYPE:] {self.question.answer_type},\n')
+        logger.info(f'[QUESTION TYPE:] {self.question.answer_type}, [ANSWER TYPE:] {self.question.answer_datatype},\n')
 
     def rephrase_question(self):
         if self.question.text.lower().startswith('who was'):
@@ -198,57 +200,46 @@ class Wise:
                 # TODO: "they" has an indication that the answer is list of people
                 continue
             w = w.translate(table)
-            if 'subj' in d:
-                if t != "O":
-                    sbj_has_NE = True
+
+            if t != "O":
                 s.append((i, w, h, d, p, pos, t))
-            if 'obj' in d:
-                if t != "O":
-                    obj_has_NE = True
-                o.append((i, w, h, d, p, pos, t))
-            if 'subj' not in d and 'obj' not in d:
-                pred.append((i, w, h, d, p, pos, t))
-            # if t != "O":
-            #     print(f"NAMED-ENTITIES: {w}")
-
-        else:
-            if sbj_has_NE:
-                s = filter(lambda x: x[6] != 'O', s)
-            if obj_has_NE:
-                o = filter(lambda x: x[6] != 'O', o)
-
-            entity = ''
-            for i, w, h, d, p, pos, t in list(s)+list(o):
-                self.question.add_entity(w, pos=pos, entity_type=t)
-                entity = w
-
-            one_relation = list()
-            relations = list()
-            idx = count()
-            prev_position = None
-            for i, w, h, d, p, pos, t in pred:
-                c = next(idx)
-                if c == 0:
-                    prev_position = p
-                    one_relation.append(w)
-                    continue
-
-                if abs(positions.index(p)-positions.index(prev_position)) == 1:
-                    one_relation.append(w)
-                else:
-                    relations.append(' '.join(one_relation))
-                    one_relation.clear()
-                    one_relation.append(w)
-
-                prev_position = p
+            elif 'subj' in d or 'obj' in d:
+                self.question.add_possible_answer_type(w)
             else:
-                rr = ' '.join(one_relation)
-                if rr:
-                    relations.append(rr)
+                pred.append((i, w, h, d, p, pos, t))
 
+        one_relation = list()
+        relations = list()
+        idx = count()
+        prev_position = None
+        for i, w, h, d, p, pos, t in pred:
+            c = next(idx)
+            if c == 0:
+                prev_position = p
+                one_relation.append(w)
+                continue
+
+            if abs(positions.index(p)-positions.index(prev_position)) == 1:
+                one_relation.append(w)
+            else:
+                relations.append(' '.join(one_relation))
+                one_relation.clear()
+                one_relation.append(w)
+
+            prev_position = p
+        else:
+            rr = ' '.join(one_relation)
+            if rr:
+                relations.append(rr)
+
+        for i, entity, h, d, p, pos, t in s + o:
+            self.question.add_entity(entity, pos=pos, entity_type=t)
             for relation in relations:
                 self.question.add_relation(entity, 'var', relation=relation)
-            logger.info(f'[GRAPH:] {self.question.entities} <===>  {self.question.relations}\n')  # TODO rename to possible noun phrase subject
+
+        logger2.debug(f"SUBJs: {self.question.graph.nodes}")
+        logger2.debug(f"RELATIONS: {list(self.question.graph.edges.data('relation'))}")
+        logger.info(f'[GRAPH:] {self.question.entities} <===>  {self.question.relations}\n')
 
     def extract_possible_V_and_E(self):
         def compute_semantic_similarity_between_single_word_and_word_list(word, word_list):
@@ -334,7 +325,7 @@ class Wise:
         self.question.possible_answers.sort(reverse=True)
         for i, possible_answer in enumerate(self.question.possible_answers):
             result = evaluate_SPARQL_query(possible_answer.sparql)
-            logger2.debug(f"[RAW RESULT FROM VIRTUOSO:] {result}")
+            # logger2.debug(f"[RAW RESULT FROM VIRTUOSO:] {result}")
             try:
                 v_result = json.loads(result)
                 possible_answer.update(results=v_result['results'], vars=v_result['head']['vars'])
@@ -474,7 +465,7 @@ class Wise:
             q = make_top_predicates_sbj_query(subj, limit=100)
             uris, names = Wise.execute_sparql_query_and_get_uri_and_name_lists(q)
         elif obj:
-            q = make_top_predicates_sbj_query(obj, limit=100)
+            q = make_top_predicates_obj_query(obj, limit=100)
             uris, names = Wise.execute_sparql_query_and_get_uri_and_name_lists(q)
         else:
             raise Exception

@@ -4,18 +4,17 @@ import bisect
 
 
 class Question:
-    question_types = ('person', 'price', 'count', 'date')
-    answer_types = ('number', 'date', 'string', 'boolean', 'resource', 'list')
+    types = ('person', 'price', 'count', 'date')  # it should be populated by the types of ontology
+    datatypes = ('number', 'date', 'string', 'boolean', 'resource', 'list')
 
-    def __init__(self, question_text, question_id=None, answer_type=None):
+    def __init__(self, question_text, question_id=None, answer_datatype=None):
         self._id = question_id
         self._question_text = question_text
         self.graph = nx.DiGraph()
-        self._question_type = None
-        self._answer_type = answer_type
+        self._answer_type = list()
+        self._answer_datatype = answer_datatype
         self._parse_components = None
         self._possible_answers = list()
-
 
     def add_possible_answer(self, **kwargs):
         # bisect.insort(self._possible_answers, Answer(**kwargs))  # it is not going to work because some answers are
@@ -39,15 +38,8 @@ class Question:
     def add_relation_properties(self, source, destination, **kwargs):
         self.graph.add_edge(source, destination, **kwargs)
 
-    @property
-    def question_type(self):
-        return self._question_type
-
-    @question_type.setter
-    def question_type(self, value):
-        if value not in Question.question_types:
-            raise ValueError(f"Question should has one of the following types {Question.question_types}")
-        self._question_type = value
+    def add_possible_answer_type(self, ontology_type: str):
+        self._answer_type.append(ontology_type)
 
     @property
     def answer_type(self):
@@ -55,9 +47,17 @@ class Question:
 
     @answer_type.setter
     def answer_type(self, value):
-        if value not in Question.answer_types:
-            raise ValueError(f"Question should has one of the following types {Question.answer_types}")
-        self._answer_type = value
+        self._answer_type.append(value)
+
+    @property
+    def answer_datatype(self):
+        return self._answer_datatype
+
+    @answer_datatype.setter
+    def answer_datatype(self, value):
+        if value not in Question.datatypes:
+            raise ValueError(f"Question should has one of the following types {Question.datatypes}")
+        self._answer_datatype = value
 
     @property
     def id(self):
@@ -86,8 +86,6 @@ class Question:
 
 class Answer:
     def __init__(self, **kwargs):
-        # self._sparql = kwargs.get('sparql', None)
-        # self._question = kwargs.get('question', None)
         self._answer = dict({
             "question": None,
             # "question_id": kwargs['question_id'],  # question_id
