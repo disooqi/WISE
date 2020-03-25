@@ -41,14 +41,15 @@ if __name__ == '__main__':
     dataset_id = qald6_testset['dataset']['id']
     WISE = Wise()
     count39 = count(1)
+    wise_qald6 = {"dataset": {"id": "qald-6-test-multilingual"}, "questions": []}
     for i, question in enumerate(qald6_testset['questions']):
         if question['id'] not in the_39_question_ids:
             continue
         qc = next(count39)
         if qc > 1:
             break
-        print(f"== Question count: {i}, ID {question['id']}  == ")
-        # if question.attributes["id"].value != '81':
+        print(f"== Question count: {qc}, ID {question['id']}  == ")
+        # if question.attributes["id"].value != '12':
         #     continue
 
         # question_text = ''
@@ -60,51 +61,22 @@ if __name__ == '__main__':
         st = time.time()
         # question_text = 'Which movies starring Brad Pitt were directed by Guy Ritchie?'
         answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=10)
-        answer = answers[0]
 
-        answer['id'] = question['id']
-        answer['answertype'] = question['answertype']
-        question_element = Et.SubElement(root_element, 'question', id=str(question['id']))
+        all_bindings = list()
+        for answer in answers:
+            if answer['results'] and answer['results']['bindings']:
+                all_bindings.extend(answer['results']['bindings'])
 
-        Et.SubElement(question_element, 'string', lang="en").text = f'![CDATA[{answer["question"]}]]'
-        Et.SubElement(question_element, 'query').text = f"![CDATA[{answer['sparql']}]]"
-        # Et.SubElement(question_element, 'sparql').text = f"![CDATA[{answer['sparql']}]]"
-        answers = Et.SubElement(question_element, 'answers')
-        results = answer.get('results', None)
-        if not results:
-            continue
-        for answer in results['bindings']:
-            for k, v in answer.items():
-                answer_element = Et.SubElement(answers, 'answer')
-                if question['answertype'] == 'resource':
-                    Et.SubElement(answer_element, 'uri').text = v["value"]
-                elif question['answertype'] == 'number':
-                    Et.SubElement(answer_element, 'number').text = v["value"]
-                elif question['answertype'] == 'date':
-                    Et.SubElement(answer_element, 'date').text = v["value"]
-                elif question['answertype'] == 'boolean':
-                    Et.SubElement(answer_element, 'boolean').text = v["value"]  # True|False
-                elif question['answertype'] == 'string':
-                    Et.SubElement(answer_element, 'string').text = v["value"]
+        if 'results' in question['answers'][0]:
+            question['answers'][0]['results']['bindings'] = all_bindings.copy()
+            wise_qald6['questions'].append(question)
+            all_bindings.clear()
 
         et = time.time()
         text = colored(f'[{et-st:.2f} sec]', 'yellow', attrs=['reverse', 'blink'])
-        cprint(f"{question_text} {text}")
+        break
 
-    tree = Et.ElementTree(root_element)
-    tree.write(f"output/WISE_qald6_{timestr}.xml")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    with open(f'output/WISE_result_{timestr}.json', encoding='utf-8', mode='w') as rfobj:
+        json.dump(wise_qald6, rfobj)
+        rfobj.write('\n')
 
