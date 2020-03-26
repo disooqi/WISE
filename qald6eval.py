@@ -43,8 +43,8 @@ if __name__ == '__main__':
     count39 = count(1)
     wise_qald6 = {"dataset": {"id": "qald-6-test-multilingual"}, "questions": []}
     for i, question in enumerate(qald6_testset['questions']):
-        # if question['id'] not in the_39_question_ids:
-        #     continue
+        if question['id'] not in the_39_question_ids:
+            continue
         qc = next(count39)
         # if qc > 1:
         #     break
@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
         st = time.time()
         # question_text = 'Which movies starring Brad Pitt were directed by Guy Ritchie?'
-        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=5)
+        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=6)
 
         all_bindings = list()
         for answer in answers:
