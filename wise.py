@@ -74,9 +74,7 @@ class Wise:
             :param n_max_answers: An int, the maximum number of result items return by WISE.
             :rtype: A :class:`Wise <Wise>`
             """
-    ner1 = Predictor.from_path(
-        "https://s3-us-west-2.amazonaws.com/allennlp/models/fine-grained-ner-model-elmo-2018.12.21.tar.gz")
-    ner2 = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
+    ner = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
     parser = Predictor.from_path(
         "https://s3-us-west-2.amazonaws.com/allennlp/models/biaffine-dependency-parser-ptb-2018.08.23.tar.gz")
 
@@ -187,8 +185,6 @@ class Wise:
     def process_question(self):
         parse_components = self.__class__._parse_sentence(self.question.text)
         self.question.parse_components = self.__class__._regroup_named_entities(parse_components)
-        ne_extra = self.__class__.ner2.predict(sentence=self.question.text)
-        self.question.ne_extra = self._get_named_entities(ne_extra['words'], ne_extra['tags'])
 
     def find_possible_noun_phrases_and_relations(self):
         s, pred, o = list(), list(), list()
@@ -395,7 +391,7 @@ class Wise:
 
     @classmethod
     def _parse_sentence(cls, sentence: str):
-        allannlp_ner_output = cls.ner1.predict(sentence=sentence)
+        allannlp_ner_output = cls.ner.predict(sentence=sentence)
         allannlp_dep_output = cls.parser.predict(sentence=sentence)
 
         words = allannlp_ner_output['words']
