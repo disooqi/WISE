@@ -201,8 +201,8 @@ class Question:
 
     def __find_possible_entities_and_relations(self):
         s, pred, o = list(), list(), list()
-        relations_ignored = ['has', 'have', 'had', 'be', 'is', 'are', 'was', 'were', 'do', 'did', 'does', 'much',
-                             'many', '']
+        relations_ignored = ['has', 'have', 'had', 'be', 'is', 'are', 'was', 'were', 'do', 'did', 'does',
+                             'much', 'many', 'give', 'show', '']
         relation_labeling = RelationLabeling()
         # positions = [token['position'] for token in self.question.tokens]
         #  i = word index, w = word_text, h = Dep_head, d
@@ -240,7 +240,7 @@ class Question:
                 self.add_possible_answer_type(token['token'])
         else:
             relation_labeling.flush_relation()
-            relations = list(filter(lambda x: x not in relations_ignored, relation_labeling.relations))
+            relations = list(filter(lambda x: x.lower() not in relations_ignored, relation_labeling.relations))
             print(relations)
 
         for i, entity, h, d, p, pos, t in s + o:
