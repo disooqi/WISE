@@ -110,8 +110,8 @@ class RelationLabeling(object):
     def add_word(self, word, pos):
         pos = nltk_POS_map.get(pos, pos)
         lemma = word
-        # if pos not in ['IN']:
-        #     lemma = lemmatizer.lemmatize(word, pos)
+        if pos not in ['IN']:
+            lemma = lemmatizer.lemmatize(word, pos)
         self.words.append(lemma)
         if self.machine.get_state(self.state).is_accepted:
             self.relation.extend(self.words)
