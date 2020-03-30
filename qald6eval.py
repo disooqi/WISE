@@ -64,7 +64,7 @@ if __name__ == '__main__':
         st = time.time()
         # question_text = 'Which movies starring Brad Pitt were directed by Guy Ritchie?'
         # question_text = 'When did the Boston Tea Party take place and led by whom?'
-        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=11)
+        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=15)
 
         all_bindings = list()
         for answer in answers:
