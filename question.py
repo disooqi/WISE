@@ -8,6 +8,7 @@ class Question:
     datatypes = ('number', 'date', 'string', 'boolean', 'resource', 'list')
 
     def __init__(self, question_text, question_id=None, answer_datatype=None):
+        self.tokens = list()
         self._id = question_id
         self._question_text = question_text
         self.graph = nx.DiGraph()

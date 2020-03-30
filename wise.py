@@ -33,6 +33,8 @@ from allennlp.predictors.predictor import Predictor
 # import rdflib # to construct rdf graph and return its equavilant SPARQL query
 # import NetworkX
 from question import Question
+from nlp.relation import RelationLabeling
+from transitions.core import MachineError
 import embeddings_client as w2v
 
 formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
@@ -115,7 +117,7 @@ class Wise:
         self.detect_question_and_answer_type()
         self.rephrase_question()
         self.process_question()
-        self.find_possible_noun_phrases_and_relations()
+        self.find_possible_entities_and_relations()
         # if no named entity you should return here
         if not self.question.graph.nodes:
             return []
@@ -183,70 +185,92 @@ class Wise:
         logger.info(f'[Question Reformulation (Not Impl yet):] {self.question.text},\n')
 
     def process_question(self):
-        parse_components = self.__class__._parse_sentence(self.question.text)
-        self.question.parse_components = self.__class__._regroup_named_entities(parse_components)
+        self._parse_sentence(self.question.text)
+        self._regroup_named_entities()
 
-    def find_possible_noun_phrases_and_relations(self):
+    def find_possible_entities_and_relations(self):
         s, pred, o = list(), list(), list()
-        # TODO look at what other tags from dep parser are considered to identify subject and objects
-        positions = list(zip(*self.question.parse_components))[4]
+        relations_ignored = ['has', 'have', 'had', 'is', 'are', 'was', 'were', 'do', 'did', 'does','much', 'many', '']
+        relation_labeling = RelationLabeling()
+        # positions = [token['position'] for token in self.question.tokens]
         #  i = word index, w = word_text, h = Dep_head, d
-        for i, w, h, d, p, pos, t in self.question.parse_components:
-            if w.lower() in ['how', 'who', 'when', 'what', 'which', 'where']:
+        for token in self.question.tokens:
+            if token['token'].lower() in ['how', 'who', 'when', 'what', 'which', 'where']:
                 continue
-            if w in punctuation or w.lower() in STOPWORDS:
+            if token['token'] in punctuation:
                 # TODO: "they" has an indication that the answer is list of people
                 continue
-            w = w.translate(table)
+            token['token'] = token['token'].translate(table)
 
-            if t != "O":
-                s.append((i, w, h, d, p, pos, t))
-            elif 'subj' in d or 'obj' in d:
-                self.question.add_possible_answer_type(w)
-            else:
-                pred.append((i, w, h, d, p, pos, t))
 
-        one_relation = list()
-        relations = list()
-        idx = count()
-        prev_position = None
-        for i, w, h, d, p, pos, t in pred:
-            c = next(idx)
-            if c == 0:
-                prev_position = p
-                one_relation.append(w)
-                continue
-
-            if abs(positions.index(p)-positions.index(prev_position)) == 1:
-                one_relation.append(w)
-            else:
-                relations.append(' '.join(one_relation))
-                one_relation.clear()
-                one_relation.append(w)
-
-            prev_position = p
-        else:
-            rr = ' '.join(one_relation)
-            if rr:
-                relations.append(rr)
-
-        # TODO: This is a hack you need find a better way
-        # if not relations:
-        #     relations.append(self.question.answer_type[0])
-
-        # # TODO: This is a hack you need find a better way
-        # if not s and not o:
-        #     s.extend(self.question.ne_extra)
-        #     for rel in relations:
-        #         if not s:  # in case no relation
-        #             return
-        #         for e in s:
-        #             if rel in e:
-        #                 continue
-        #         else:
-        #             self.question.add_relation(e, 'var', relation=rel)
+        #     try:
+        #         # print(wise.machine.get_state(wise.state).is_accepted)
+        #     except AttributeError as ae:
+        #     except MachineError as me:
+        #         print(f"MachineError: {me}")
+        #         wise.flush_relation()
         #     else:
-        #         return
+        #         pass
+        #     finally:
+        #         pass
+        # else:
+        #     wise.flush_relation()
+        #     fwobj.write(f"{wise.relations} \n")
+        #     wise.relations.clear()
+
+            try:
+                pos = token["pos-tag"] if token['ne-tag'] == 'O' else 'NE'
+                tok = token['token']
+                # print(f'rl.{pos}("{tok}")')
+                eval(f'relation_labeling.{pos.replace("$", "_")}("{tok}")')
+            except AttributeError as ae:
+                relation_labeling.flush_relation()
+            except MachineError as me:
+                print(f"MachineError: {me}")
+                relation_labeling.flush_relation()
+
+            else:
+                pass
+            finally:
+                pass
+
+            # if token['token'].lower() in STOPWORDS:
+            #     # TODO: "they" has an indication that the answer is list of people
+            #     continue
+
+            if token['ne-tag'] != "O":
+                s.append((token['index'], token['token'], token['head'], token['dependency'], token['position'], token['pos-tag'], token['ne-tag']))
+            elif 'subj' in token['dependency'] or 'obj' in token['dependency']:
+                self.question.add_possible_answer_type(token['token'])
+        else:
+            relation_labeling.flush_relation()
+            relations = list(filter(lambda x: x not in relations_ignored, relation_labeling.relations))
+            print(relations)
+
+
+        # one_relation = list()
+        # relations = list()
+        # idx = count()
+        # prev_position = None
+        # for i, w, h, d, p, pos, t in pred:
+        #     c = next(idx)
+        #     if c == 0:
+        #         prev_position = p
+        #         one_relation.append(w)
+        #         continue
+        #
+        #     if abs(positions.index(p)-positions.index(prev_position)) == 1:
+        #         one_relation.append(w)
+        #     else:
+        #         relations.append(' '.join(one_relation))
+        #         one_relation.clear()
+        #         one_relation.append(w)
+        #
+        #     prev_position = p
+        # else:
+        #     rr = ' '.join(one_relation)
+        #     if rr:
+        #         relations.append(rr)
 
         for i, entity, h, d, p, pos, t in s + o:
             self.question.add_entity(entity, pos=pos, entity_type=t)
@@ -254,7 +278,7 @@ class Wise:
                 self.question.add_relation(entity, 'var', relation=relation, uris=[])
 
         logger2.debug(f"SUBJs: {self.question.graph.nodes}")
-        logger2.debug(f"RELATIONS: {list(self.question.graph.edges.data('relation'))}")
+        logger2.debug(f"RELATION TRIPLES: {list(self.question.graph.edges.data('relation'))}")
         logger.info(f'[GRAPH:] {self.question.entities} <===>  {self.question.relations}\n')
 
     def extract_possible_V_and_E(self):
@@ -381,18 +405,17 @@ class Wise:
                     #     uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
                 else:
                     if v_result['results']['bindings']:
-                        logger.info(f"[POSSIBLE ANSWER {next(qc)}:] {answers}")
-                        sparqls.append(possible_answer.sparql)
+                        logger.info(f"[POSSIBLE ANSWER {i}:] {answers}")
+                    sparqls.append(possible_answer.sparql)
 
             except:
                 print(f" >>>>>>>>>>>>>>>>>>>> What the hell [{result}] <<<<<<<<<<<<<<<<<<")
         else:
             self.question.sparqls = sparqls
 
-    @classmethod
-    def _parse_sentence(cls, sentence: str):
-        allannlp_ner_output = cls.ner.predict(sentence=sentence)
-        allannlp_dep_output = cls.parser.predict(sentence=sentence)
+    def _parse_sentence(self, sentence: str):
+        allannlp_ner_output = self.__class__.ner.predict(sentence=sentence)
+        allannlp_dep_output = self.__class__.parser.predict(sentence=sentence)
 
         words = allannlp_ner_output['words']
         ner_tags = allannlp_ner_output['tags']
@@ -406,33 +429,14 @@ class Wise:
         words_info = list(zip(range(1, len(words) + 1), words, heads, dependencies, positions, pos_tags, ner_tags))
         logger.info(f'[QUESTION PARSE COMPONENTS:] {words_info},\n')
 
-        return words_info
+        for i, w, h, d, p, pos, t in words_info:
+            self.question.tokens.append({'index': i, 'token': w, 'head': h, 'dependency': d, 'position': p,
+                                         'pos-tag': pos, 'ne-tag': t})
+        # return words_info
 
-    @staticmethod
-    def _get_named_entities(words, tags):
-        named_entities = list()
-        entity = list()
-        for w, t in zip(words, tags):
-            if t.startswith('B-'):
-                entity.append(w)
-            elif t.startswith('I-'):
-                entity.append(w)
-            elif t.startswith('L-'):
-                entity.append(w)
-                named_entities.append(' '.join(entity))
-                entity.clear()
-            elif t.startswith('U-'):
-                named_entities.append(w)
-
-        else:
-            logger.info(f'[NAMED ENTITIES FROM EXTRA RECOGNIZER:] {named_entities},\n')
-            return named_entities
-
-    @staticmethod
-    def _regroup_named_entities(parse_components):
+    def _regroup_named_entities(self):
         l2 = list()
         entity = list()
-        flag = False
         tag = ''
 
         head = None
@@ -440,46 +444,48 @@ class Wise:
         dep = None
         poss = list()
         position = None
-        for i, w, h, d, p, pos, t in parse_components:
-            if t.startswith('B-'):
-                flag = True
-                tag = t[2:]
-                if 'obj' in d or 'subj' in d:
-                    head, dep = h, d
-                h_d.append((i, h, d))
-                position = p
-                poss.append(pos)
-                entity.append(w)
-            elif flag and t.startswith('I-'):
-                if 'obj' in d or 'subj' in d:
-                    head, dep = h, d
-                h_d.append((i, h, d))
-                poss.append(pos)
-                entity.append(w)
-            elif flag and t.startswith('L-'):
-                if 'obj' in d or 'subj' in d:
-                    head, dep = h, d
-                h_d.append((i, h, d))
+        for token in self.question.tokens:
+            if token['ne-tag'].startswith('B-'):
+                tag = token['ne-tag'][2:]
+                position = token['position']
+                if 'obj' in token['dependency'] or 'subj' in token['dependency']:
+                    head, dep = token['head'], token['dependency']
+                h_d.append((token['index'], token['head'], token['dependency']))
+                poss.append(token['pos-tag'])
+                entity.append(token['token'])
+            elif token['ne-tag'].startswith('I-'):
+                if 'obj' in token['dependency'] or 'subj' in token['dependency']:
+                    head, dep = token['head'], token['dependency']
+                h_d.append((token['index'], token['head'], token['dependency']))
+                poss.append(token['pos-tag'])
+                entity.append(token['token'])
+            elif token['ne-tag'].startswith('L-'):
+                if 'obj' in token['dependency'] or 'subj' in token['dependency']:
+                    head, dep = token['head'], token['dependency']
+                h_d.append((token['index'], token['head'], token['dependency']))
                 entity_idxs = list(zip(*h_d))[0]
                 if not head and not dep:
                     for _, _h, _d in h_d:
-                        if h not in entity_idxs:
+                        if token['head'] not in entity_idxs:
                             head, dep = _h, _d
                             break
                     else:
-                        head, dep = h, d
-                poss.append(pos)
-                entity.append(w)
-                l2.append((i, ' '.join(entity), head, dep, position, ' '.join(poss), tag))
+                        head, dep = token['head'], token['dependency']
+                poss.append(token['pos-tag'])
+                entity.append(token['token'])
+                l2.append((token['index'], ' '.join(entity), head, dep, position, ' '.join(poss), tag))
                 entity.clear()
-                flag = False
-            elif t.startswith('U-'):
-                l2.append((i, w, h, d, p, pos, t[2:]))
+            elif token['ne-tag'].startswith('U-'):
+                l2.append((token['index'], token['token'], token['head'], token['dependency'], token['position'], token['pos-tag'], token['ne-tag'][2:]))
             else:
-                l2.append((i, w, h, d, p, pos, t))
+                l2.append((token['index'], token['token'], token['head'], token['dependency'], token['position'], token['pos-tag'], token['ne-tag']))
         else:
             logger.info(f'[QUESTION PARSE COMPONENTS WITH REGROUPED NAMED ENTITIES:] {l2},\n')
-            return l2
+            self.question.tokens.clear()
+            for i, w, h, d, p, pos, t in l2:
+                self.question.tokens.append({'index': i, 'token': w, 'head': h, 'dependency': d, 'position': p,
+                                             'pos-tag': pos, 'ne-tag': t})
+            # return l2
 
     @staticmethod
     def extract_resource_name(result_bindings):
@@ -598,4 +604,5 @@ def get_combination_of_two_lists(list1, list2, directed=False, with_reversed=Fal
 
 
 if __name__ == '__main__':
-    print(get_combination_of_two_lists([50,2,3], [50,3,70], directed=True, with_reversed=True))
+    my_wise = Wise()
+    my_wise.ask(question_text='Which movies starring Brad Pitt were directed by Guy Ritchie?', n_max_answers=1)
