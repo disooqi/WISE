@@ -13,15 +13,13 @@ __email__ = "mohamed@eldesouki.ca"
 __status__ = "debug"
 __created__ = "2020-03-05"
 
-from pprint import pprint
 import os
 import re
 import json
 import operator
 import logging
-from string import punctuation
 from collections import defaultdict
-from itertools import count, product, chain, starmap, zip_longest
+from itertools import count, product, zip_longest
 from statistics import mean
 from urllib.parse import urlparse
 from gensim.parsing.preprocessing import remove_stopwords, STOPWORDS
@@ -29,12 +27,11 @@ from sparqls import (make_keyword_unordered_search_query_with_type, make_top_pre
                      make_top_predicates_obj_query, evaluate_SPARQL_query, construct_answers_query,
                      construct_yesno_answers_query, construct_yesno_answers_query2,
                      sparql_query_to_get_predicates_when_subj_and_obj_are_known)
-from allennlp.predictors.predictor import Predictor
 # import rdflib # to construct rdf graph and return its equavilant SPARQL query
-# import NetworkX
+
+import utils
 from question import Question
-from nlp.relation import RelationLabeling
-from transitions.core import MachineError
+from nlp.utils import remove_duplicates
 import embeddings_client as w2v
 
 formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
@@ -57,11 +54,6 @@ logger2.setLevel(logging.DEBUG)
 
 
 
-# ner_predictor2 = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
-# oie_predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/openie-model.2018-08-20.tar.gz")
-
-table = str.maketrans('', '', punctuation)
-
 class Wise:
     """A Natural Language Platform For Querying RDF-Based Graphs
 
@@ -76,9 +68,7 @@ class Wise:
             :param n_max_answers: An int, the maximum number of result items return by WISE.
             :rtype: A :class:`Wise <Wise>`
             """
-    ner = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
-    parser = Predictor.from_path(
-        "https://s3-us-west-2.amazonaws.com/allennlp/models/biaffine-dependency-parser-ptb-2018.08.23.tar.gz")
+
 
     def __init__(self, semantic_afinity_server=None, n_max_answers: int = 100):
         self._ss_server = semantic_afinity_server
@@ -116,8 +106,6 @@ class Wise:
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
         self.detect_question_and_answer_type()
         self.rephrase_question()
-        self.process_question()
-        self.find_possible_entities_and_relations()
         # if no named entity you should return here
         if not self.question.graph.nodes:
             return []
@@ -182,104 +170,8 @@ class Wise:
     def rephrase_question(self):
         if self.question.text.lower().startswith('who was'):
             pass
-        logger.info(f'[Question Reformulation (Not Impl yet):] {self.question.text},\n')
 
-    def process_question(self):
-        self._parse_sentence(self.question.text)
-        self._regroup_named_entities()
-
-    def find_possible_entities_and_relations(self):
-        s, pred, o = list(), list(), list()
-        relations_ignored = ['has', 'have', 'had', 'is', 'are', 'was', 'were', 'do', 'did', 'does','much', 'many', '']
-        relation_labeling = RelationLabeling()
-        # positions = [token['position'] for token in self.question.tokens]
-        #  i = word index, w = word_text, h = Dep_head, d
-        for token in self.question.tokens:
-            if token['token'].lower() in ['how', 'who', 'when', 'what', 'which', 'where']:
-                continue
-            if token['token'] in punctuation:
-                # TODO: "they" has an indication that the answer is list of people
-                continue
-            token['token'] = token['token'].translate(table)
-
-
-        #     try:
-        #         # print(wise.machine.get_state(wise.state).is_accepted)
-        #     except AttributeError as ae:
-        #     except MachineError as me:
-        #         print(f"MachineError: {me}")
-        #         wise.flush_relation()
-        #     else:
-        #         pass
-        #     finally:
-        #         pass
-        # else:
-        #     wise.flush_relation()
-        #     fwobj.write(f"{wise.relations} \n")
-        #     wise.relations.clear()
-
-            try:
-                pos = token["pos-tag"] if token['ne-tag'] == 'O' else 'NE'
-                tok = token['token']
-                # print(f'rl.{pos}("{tok}")')
-                eval(f'relation_labeling.{pos.replace("$", "_")}("{tok}")')
-            except AttributeError as ae:
-                relation_labeling.flush_relation()
-            except MachineError as me:
-                print(f"MachineError: {me}")
-                relation_labeling.flush_relation()
-
-            else:
-                pass
-            finally:
-                pass
-
-            # if token['token'].lower() in STOPWORDS:
-            #     # TODO: "they" has an indication that the answer is list of people
-            #     continue
-
-            if token['ne-tag'] != "O":
-                s.append((token['index'], token['token'], token['head'], token['dependency'], token['position'], token['pos-tag'], token['ne-tag']))
-            elif 'subj' in token['dependency'] or 'obj' in token['dependency']:
-                self.question.add_possible_answer_type(token['token'])
-        else:
-            relation_labeling.flush_relation()
-            relations = list(filter(lambda x: x not in relations_ignored, relation_labeling.relations))
-            print(relations)
-
-
-        # one_relation = list()
-        # relations = list()
-        # idx = count()
-        # prev_position = None
-        # for i, w, h, d, p, pos, t in pred:
-        #     c = next(idx)
-        #     if c == 0:
-        #         prev_position = p
-        #         one_relation.append(w)
-        #         continue
-        #
-        #     if abs(positions.index(p)-positions.index(prev_position)) == 1:
-        #         one_relation.append(w)
-        #     else:
-        #         relations.append(' '.join(one_relation))
-        #         one_relation.clear()
-        #         one_relation.append(w)
-        #
-        #     prev_position = p
-        # else:
-        #     rr = ' '.join(one_relation)
-        #     if rr:
-        #         relations.append(rr)
-
-        for i, entity, h, d, p, pos, t in s + o:
-            self.question.add_entity(entity, pos=pos, entity_type=t)
-            for relation in relations:
-                self.question.add_relation(entity, 'var', relation=relation, uris=[])
-
-        logger2.debug(f"SUBJs: {self.question.graph.nodes}")
-        logger2.debug(f"RELATION TRIPLES: {list(self.question.graph.edges.data('relation'))}")
-        logger.info(f'[GRAPH:] {self.question.entities} <===>  {self.question.relations}\n')
+        # logger.info(f'[Question Reformulation (Not Impl yet):] {self.question.text},\n')
 
     def extract_possible_V_and_E(self):
         for entity in self.question.entities:
@@ -311,7 +203,7 @@ class Wise:
         for (source, destination, relation) in self.question.graph.edges.data('relation'):
             source_URIs = self.question.graph.nodes[source]['uris']
             destination_URIs = self.question.graph.nodes[destination]['uris']
-            combinations = get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=False)
+            combinations = utils.get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=False)
 
             uris, names = list(), list()
             if destination == 'var':  # 'var' always comes in the destination part
@@ -320,7 +212,7 @@ class Wise:
                     URIs_true, names_true = self._get_predicates_and_their_names(obj=uri)
                     URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
                     URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
-                    URIs_chosen = self.__get_chosen_URIs(relation, URIs_false+URIs_true, names_false+names_true)
+                    URIs_chosen = self.__get_chosen_URIs_for_relation(relation, URIs_false + URIs_true, names_false + names_true)
                     self.question.graph[source][destination]['uris'].extend(URIs_chosen)
                     # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
             else:
@@ -329,18 +221,9 @@ class Wise:
                     URIs_true, names_true = self._get_predicates_and_their_names(v_uri_2, v_uri_1)
                     URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
                     URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
-                    URIs_chosen = self.__get_chosen_URIs(relation, URIs_false+URIs_true, names_false+names_true)
+                    URIs_chosen = self.__get_chosen_URIs_for_relation(relation, URIs_false + URIs_true, names_false + names_true)
                     self.question.graph[source][destination]['uris'].extend(URIs_chosen)
                     # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
-
-            # scores = compute_semantic_similarity_between_single_word_and_word_list(relation, names)
-            # URIs_with_scores = list(zip(uris, scores))
-            # URIs_with_scores.sort(key=operator.itemgetter(1), reverse=True)
-            # self.uri_scores.update(URIs_with_scores)
-            # URIs_sorted = list(zip(*URIs_with_scores))[0]
-            # URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Es]
-
-
 
             logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
 
@@ -358,7 +241,8 @@ class Wise:
         else:
             return scores
 
-    def __get_chosen_URIs(self, relation: str, uris: list, names: list):
+    def __get_chosen_URIs_for_relation(self, relation: str, uris: list, names: list):
+        logger.info(f'[RELATION AFTER LEMMATIZATION:] {relation}')
         scores = self.__class__.__compute_semantic_similarity_between_single_word_and_word_list(relation, names)
         # (uri, True) ===>  (uri, True, score)
         l1, l2 = list(zip(*uris))
@@ -374,7 +258,7 @@ class Wise:
             destination_URIs = self.question.graph.nodes[destination]['uris']
             node_uris = source_URIs if destination == 'var' else destination_URIs
 
-            possible_triples_for_single_relation = get_combination_of_two_lists(node_uris, relation_uris)
+            possible_triples_for_single_relation = utils.get_combination_of_two_lists(node_uris, relation_uris)
             possible_triples_for_all_relations.append(possible_triples_for_single_relation)
         else:
             for star_query in product(*possible_triples_for_all_relations):
@@ -412,80 +296,6 @@ class Wise:
                 print(f" >>>>>>>>>>>>>>>>>>>> What the hell [{result}] <<<<<<<<<<<<<<<<<<")
         else:
             self.question.sparqls = sparqls
-
-    def _parse_sentence(self, sentence: str):
-        allannlp_ner_output = self.__class__.ner.predict(sentence=sentence)
-        allannlp_dep_output = self.__class__.parser.predict(sentence=sentence)
-
-        words = allannlp_ner_output['words']
-        ner_tags = allannlp_ner_output['tags']
-        pos_tags = allannlp_dep_output['pos']
-        dependencies = allannlp_dep_output['predicted_dependencies']
-        heads = allannlp_dep_output['predicted_heads']
-        # d = reformat_allennlp_ner_output(ner_tags, words)
-
-        positions = traverse_tree(allannlp_dep_output['hierplane_tree']['root'])
-        positions.sort()
-        words_info = list(zip(range(1, len(words) + 1), words, heads, dependencies, positions, pos_tags, ner_tags))
-        logger.info(f'[QUESTION PARSE COMPONENTS:] {words_info},\n')
-
-        for i, w, h, d, p, pos, t in words_info:
-            self.question.tokens.append({'index': i, 'token': w, 'head': h, 'dependency': d, 'position': p,
-                                         'pos-tag': pos, 'ne-tag': t})
-        # return words_info
-
-    def _regroup_named_entities(self):
-        l2 = list()
-        entity = list()
-        tag = ''
-
-        head = None
-        h_d = list()
-        dep = None
-        poss = list()
-        position = None
-        for token in self.question.tokens:
-            if token['ne-tag'].startswith('B-'):
-                tag = token['ne-tag'][2:]
-                position = token['position']
-                if 'obj' in token['dependency'] or 'subj' in token['dependency']:
-                    head, dep = token['head'], token['dependency']
-                h_d.append((token['index'], token['head'], token['dependency']))
-                poss.append(token['pos-tag'])
-                entity.append(token['token'])
-            elif token['ne-tag'].startswith('I-'):
-                if 'obj' in token['dependency'] or 'subj' in token['dependency']:
-                    head, dep = token['head'], token['dependency']
-                h_d.append((token['index'], token['head'], token['dependency']))
-                poss.append(token['pos-tag'])
-                entity.append(token['token'])
-            elif token['ne-tag'].startswith('L-'):
-                if 'obj' in token['dependency'] or 'subj' in token['dependency']:
-                    head, dep = token['head'], token['dependency']
-                h_d.append((token['index'], token['head'], token['dependency']))
-                entity_idxs = list(zip(*h_d))[0]
-                if not head and not dep:
-                    for _, _h, _d in h_d:
-                        if token['head'] not in entity_idxs:
-                            head, dep = _h, _d
-                            break
-                    else:
-                        head, dep = token['head'], token['dependency']
-                poss.append(token['pos-tag'])
-                entity.append(token['token'])
-                l2.append((token['index'], ' '.join(entity), head, dep, position, ' '.join(poss), tag))
-                entity.clear()
-            elif token['ne-tag'].startswith('U-'):
-                l2.append((token['index'], token['token'], token['head'], token['dependency'], token['position'], token['pos-tag'], token['ne-tag'][2:]))
-            else:
-                l2.append((token['index'], token['token'], token['head'], token['dependency'], token['position'], token['pos-tag'], token['ne-tag']))
-        else:
-            logger.info(f'[QUESTION PARSE COMPONENTS WITH REGROUPED NAMED ENTITIES:] {l2},\n')
-            self.question.tokens.clear()
-            for i, w, h, d, p, pos, t in l2:
-                self.question.tokens.append({'index': i, 'token': w, 'head': h, 'dependency': d, 'position': p,
-                                             'pos-tag': pos, 'ne-tag': t})
-            # return l2
 
     @staticmethod
     def extract_resource_name(result_bindings):
@@ -555,52 +365,6 @@ class Wise:
     def execute_sparql_query_and_get_uri_and_name_lists(q):
         result = json.loads(evaluate_SPARQL_query(q))
         return Wise.extract_predicate_names(result['results']['bindings'])
-
-
-def traverse_tree(subtree):
-    positions = list()
-    positions.append(subtree['spans'][0]['start'])
-    if 'children' not in subtree:
-        return positions
-
-    for child in subtree['children']:
-        ps = traverse_tree(child)
-        positions.extend(ps)
-    else:
-        return positions
-
-
-def remove_duplicates(sequence):
-    seen = set()
-    return [x for x in sequence if not (x in seen or seen.add(x))]
-
-
-def get_combination_of_two_lists(list1, list2, directed=False, with_reversed=False):
-    lists = [l for l in (list1, list2) if l]
-
-    if len(lists) < 2:
-        return set(chain(list1, list2))
-
-    combinations = product(*lists, repeat=1)
-    combinations_selected = list()
-    combinations_memory = list()
-
-    for comb in combinations:
-        pair = set(comb)
-
-        if len(lists) == 2 and len(pair) == 1:
-            continue
-
-        if not directed and pair in combinations_memory:
-            continue
-        combinations_memory.append(pair)
-        combinations_selected.append(comb)
-    else:
-        if with_reversed:
-            combinations_reversed = [(comb[1], comb[0]) for comb in combinations_selected if len(lists) == 2]
-            combinations_selected.extend(combinations_reversed)
-
-        return set(combinations_selected)
 
 
 if __name__ == '__main__':

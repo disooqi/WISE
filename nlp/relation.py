@@ -17,13 +17,17 @@ __created__ = "2020-03-28"
 from transitions.core import MachineError
 from transitions.extensions import MachineFactory, GraphMachine as Machine
 from transitions.extensions.states import add_state_features, Tags
-import os, sys, inspect, io
+import os, sys, inspect
+from nlp.models import WordNetLemmatizer
+from nlp.utils import nltk_POS_map
 
-cmd_folder = os.path.realpath(
-    os.path.dirname(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0])))
+# cmd_folder = os.path.realpath(
+#     os.path.dirname(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0])))
+#
+# if cmd_folder not in sys.path:
+#     sys.path.insert(0, cmd_folder)
 
-if cmd_folder not in sys.path:
-    sys.path.insert(0, cmd_folder)
+lemmatizer = WordNetLemmatizer()
 
 
 @add_state_features(Tags)
@@ -103,8 +107,12 @@ class RelationLabeling(object):
         self.machine.add_transition(trigger='NNS', source='unacceptable', dest='NNS', after='add_word')  # 'NN', 'IN',
         self.machine.add_transition(trigger='IN', source='NNS', dest='final', after='add_word')
 
-    def add_word(self, word):
-        self.words.append(word)
+    def add_word(self, word, pos):
+        pos = nltk_POS_map.get(pos, pos)
+        lemma = word
+        # if pos not in ['IN']:
+        #     lemma = lemmatizer.lemmatize(word, pos)
+        self.words.append(lemma)
         if self.machine.get_state(self.state).is_accepted:
             self.relation.extend(self.words)
             self.words.clear()
