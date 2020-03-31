@@ -27,7 +27,7 @@ from sparqls import (make_keyword_unordered_search_query_with_type, make_top_pre
                      make_top_predicates_obj_query, evaluate_SPARQL_query, construct_answers_query,
                      construct_yesno_answers_query, construct_yesno_answers_query2,
                      sparql_query_to_get_predicates_when_subj_and_obj_are_known)
-# import rdflib # to construct rdf graph and return its equavilant SPARQL query
+# import rdflib # to construct rdf graph and return its equivalent SPARQL query
 
 import utils
 from question import Question
@@ -53,7 +53,6 @@ logger2.addHandler(sh)
 logger2.setLevel(logging.DEBUG)
 
 
-
 class Wise:
     """A Natural Language Platform For Querying RDF-Based Graphs
 
@@ -61,17 +60,16 @@ class Wise:
             Usage::
 
                 >>> from wise import Wise
-                >>> my_wise = Wise(semantic_afinity_server='127.0.0.1:9600', n_max_answers=10)
+                >>> my_wise = Wise(semantic_affinity_server='127.0.0.1:9600', n_max_answers=10)
 
-            :param semantic_afinity_server: A string, IP and Port for the semantic similarity server of the
+            :param semantic_affinity_server: A string, IP and Port for the semantic similarity server of the
             form ``127.0.0.1:9600``.
             :param n_max_answers: An int, the maximum number of result items return by WISE.
             :rtype: A :class:`Wise <Wise>`
             """
 
-
-    def __init__(self, semantic_afinity_server=None, n_max_answers: int = 100):
-        self._ss_server = semantic_afinity_server
+    def __init__(self, semantic_affinity_server=None, n_max_answers: int = 100):
+        self._ss_server = semantic_affinity_server
         self._n_max_answers = n_max_answers  # this should affect the number of star queries to be executed against TS
         self._current_question = None
         self.n_max_Vs = 2
