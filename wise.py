@@ -76,14 +76,6 @@ class Wise:
         self.n_max_Es = 3
         self.v_uri_scores = defaultdict(float)
 
-    @property
-    def question(self):
-        return self._current_question
-
-    @question.setter
-    def question(self, value: str):
-        self._current_question = Question(question_text=value)
-
     def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int =None):
         """WISE pipeline
 
@@ -100,7 +92,6 @@ class Wise:
 
         if answer_type:
             self.question.answer_datatype = answer_type
-        logger.info(f'\n{"<>" * 200}\n[Question:] {self.question.text},\n')
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
         self.detect_question_and_answer_type()
         self.rephrase_question()
@@ -112,9 +103,7 @@ class Wise:
         self.evaluate_star_queries()
 
         answers = [answer.json() for answer in self.question.possible_answers[:n_max_answers]]
-
-        logger.info(f"[FINAL ANSWERS:] {self.question.sparqls}")
-
+        logger.info(f"\n\n\n\n{'#'*120}")
         return answers
 
     def detect_question_and_answer_type(self):
@@ -163,8 +152,6 @@ class Wise:
         else:
             pass  # 11,13,75
 
-        logger.info(f'[QUESTION TYPE:] {self.question.answer_type}, [ANSWER TYPE:] {self.question.answer_datatype},\n')
-
     def rephrase_question(self):
         if self.question.text.lower().startswith('who was'):
             pass
@@ -172,7 +159,6 @@ class Wise:
         # logger.info(f'[Question Reformulation (Not Impl yet):] {self.question.text},\n')
 
     def extract_possible_V_and_E(self):
-        print(' ++++++ ', self.question.query_graph.edges)
         for entity in self.question.query_graph:
             if entity == 'var':
                 self.question.query_graph.add_node(entity, uris=[], answers=[])
@@ -194,38 +180,35 @@ class Wise:
             URIs_sorted = list(zip(*URIs_with_scores))[0]
             URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Vs]
             self.question.query_graph.nodes[entity]['uris'].extend(URIs_chosen)
-            logger.info(f"[URIs for Entity '{entity}':] {URIs_chosen}")
 
         # Find E for all relations
         for (source, destination, key, relation) in self.question.query_graph.edges(data='relation', keys=True):
-            logger2.debug(f"{source}, {destination}, {key}, {relation}")
             source_URIs = self.question.query_graph.nodes[source]['uris']
             destination_URIs = self.question.query_graph.nodes[destination]['uris']
             combinations = utils.get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=False)
 
             uris, names = list(), list()
-            if source == 'var' or destination == 'var':  # 'var' always comes in the destination part
-                for uri in combinations:
-                    URIs_false, names_false = self._get_predicates_and_their_names(subj=uri)
-                    URIs_true, names_true = self._get_predicates_and_their_names(obj=uri)
-                    URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
-                    URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
-                    URIs_chosen = self.__get_chosen_URIs_for_relation(relation, URIs_false + URIs_true, names_false + names_true)
-                    self.question.query_graph[source][destination][key]['uris'].extend(URIs_chosen)
-                    # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
-                    logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
-            else:
-                for v_uri_1, v_uri_2 in combinations:
+            for comb in combinations:
+                if source == 'var' or destination == 'var':
+                    URIs_false, names_false = self._get_predicates_and_their_names(subj=comb)
+                    if 'leadfigures' in names_false:
+                        idx = names_false.index('leadfigures')
+                        names_false[idx] = 'lead figures'
+                    URIs_true, names_true = self._get_predicates_and_their_names(obj=comb)
+                else:
+                    v_uri_1, v_uri_2 = comb
                     URIs_false, names_false = self._get_predicates_and_their_names(v_uri_1, v_uri_2)
                     URIs_true, names_true = self._get_predicates_and_their_names(v_uri_2, v_uri_1)
-                    URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
-                    URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
-                    URIs_chosen = self.__get_chosen_URIs_for_relation(relation, URIs_false + URIs_true, names_false + names_true)
-                    self.question.graph[source][destination]['uris'].extend(URIs_chosen)
-                    # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
-                    logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
-
-            #
+                URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
+                URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
+                uris.extend(URIs_false + URIs_true)
+                names.extend(names_false + names_true)
+            else:
+                URIs_chosen = self.__get_chosen_URIs_for_relation(relation, uris, names)
+                self.question.query_graph[source][destination][key]['uris'].extend(URIs_chosen)
+        else:
+            logger.info(f"[GRAPH NODES WITH URIs:] {self.question.query_graph.nodes(data=True)}")
+            logger.info(f"[GRAPH EDGES WITH URIs:] {self.question.query_graph.edges(data=True)}")
 
     @staticmethod
     def __compute_semantic_similarity_between_single_word_and_word_list(word, word_list):
@@ -242,7 +225,6 @@ class Wise:
             return scores
 
     def __get_chosen_URIs_for_relation(self, relation: str, uris: list, names: list):
-        # logger.info(f'[RELATION AFTER LEMMATIZATION:] {relation}')
         scores = self.__class__.__compute_semantic_similarity_between_single_word_and_word_list(relation, names)
         # (uri, True) ===>  (uri, True, score)
         l1, l2 = list(zip(*uris))
@@ -272,11 +254,14 @@ class Wise:
 
     def evaluate_star_queries(self):
         self.question.possible_answers.sort(reverse=True)
+        # for i, possible_answer in enumerate(self.question.possible_answers):
+        #     print(i, possible_answer.sparql, possible_answer.score)
         qc = count(1)
         sparqls = list()
         for i, possible_answer in enumerate(self.question.possible_answers[:self._n_max_answers]):
+            logger.info(f"[EVALUATING SPARQL:] {possible_answer.sparql}")
             result = evaluate_SPARQL_query(possible_answer.sparql)
-            # logger2.debug(f"[RAW RESULT FROM VIRTUOSO:] {result}")
+            logger.info(f"[POSSIBLE SPARQLs WITH ANSWER (SORTED):] {possible_answer.sparql}")
             try:
                 v_result = json.loads(result)
                 possible_answer.update(results=v_result['results'], vars=v_result['head']['vars'])
@@ -284,18 +269,22 @@ class Wise:
                 for binding in v_result['results']['bindings']:
                     answer = self.__class__.extract_resource_name_from_uri(binding['var']['value'])[0]
                     answers.append(answer)
-
-                    # for var, v in binding.items():
-                    #     uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
                 else:
                     if v_result['results']['bindings']:
                         logger.info(f"[POSSIBLE ANSWER {i}:] {answers}")
                     sparqls.append(possible_answer.sparql)
-
             except:
                 print(f" >>>>>>>>>>>>>>>>>>>> What the hell [{result}] <<<<<<<<<<<<<<<<<<")
         else:
             self.question.sparqls = sparqls
+
+    @property
+    def question(self):
+        return self._current_question
+
+    @question.setter
+    def question(self, value: str):
+        self._current_question = Question(question_text=value)
 
     @staticmethod
     def extract_resource_name(result_bindings):

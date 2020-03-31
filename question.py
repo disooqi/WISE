@@ -110,7 +110,6 @@ class Question:
         positions = traverse_tree(allannlp_dep_output['hierplane_tree']['root'])
         positions.sort()
         words_info = list(zip(range(1, len(words) + 1), words, heads, dependencies, positions, pos_tags, ner_tags))
-        logger.info(f'[QUESTION PARSE COMPONENTS:] {words_info},\n')
 
         for i, w, h, d, p, pos, t in words_info:
             self.tokens.append({'index': i, 'token': w, 'head': h, 'dependency': d, 'position': p,
@@ -164,11 +163,12 @@ class Question:
                 l2.append((token['index'], token['token'], token['head'], token['dependency'], token['position'],
                            token['pos-tag'], token['ne-tag']))
         else:
-            logger.info(f'[QUESTION PARSE COMPONENTS WITH REGROUPED NAMED ENTITIES:] {l2},\n')
             self.tokens.clear()
             for i, w, h, d, p, pos, t in l2:
-                self.tokens.append({'index': i, 'token': w, 'head': h, 'dependency': d, 'position': p,
-                                             'pos-tag': pos, 'ne-tag': t})
+                self.tokens.append({'index': i, 'token': w, 'head': h, 'dependency': d, 'position': p, 'pos-tag': pos,
+                                    'ne-tag': t})
+            else:
+                logger.info(f"[NAMED-ENTITIES:] {self.tokens}")
 
     def __find_possible_entities_and_relations(self):
         s, pred, o = list(), list(), list()
@@ -188,14 +188,12 @@ class Question:
             try:
                 pos = token["pos-tag"] if token['ne-tag'] == 'O' else 'NE'
                 tok = token['token']
-                # print(f'rl.{pos}("{tok}")')
                 eval(f'relation_labeling.{pos.replace("$", "_")}("{tok}", "{token["pos-tag"]}")')
             except AttributeError as ae:
                 relation_labeling.flush_relation()
             except MachineError as me:
                 print(f"MachineError: {me}")
                 relation_labeling.flush_relation()
-
             else:
                 pass
             finally:
@@ -212,15 +210,17 @@ class Question:
         else:
             relation_labeling.flush_relation()
             relations = list(filter(lambda x: x.lower() not in relations_ignored, relation_labeling.relations))
-            print(relations)
 
         for i, entity, h, d, p, pos, t in s + o:
             # TODO: This for-loop does not consider relation between two named entities
+            if entity.startswith('the '):
+                entity = entity[4:]
             self.query_graph.add_node(entity, pos=pos, entity_type=t, uris=[])
             for relation in relations:
                 relation_key = self.query_graph.add_edge(entity, 'var', relation=relation, uris=[])
-        logger.debug(f"SUBJs: {self.query_graph.nodes}")
-        logger.info(f'[GRAPH:] {self.query_graph.edges(data=True)}\n')
+
+        logger.info(f"[NODES:] {s + o}")
+        logger.info(f"[RELATIONS:] {relations}")
 
 
 class Answer:
