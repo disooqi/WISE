@@ -205,7 +205,7 @@ class Question:
                              'much', 'many', 'give', 'show', '',
 
                              'song', 'party', 'belong', 'city', 'country', 'list of', 'theme', 'company', 'movie',
-                             'kind of', 'language', 'atmosphere of']
+                             'kind of', 'language', 'atmosphere of', 'river', 'coach of']
         relation_labeling = RelationLabeling()
         # positions = [token['position'] for token in self.question.tokens]
         #  i = word index, w = word_text, h = Dep_head, d
