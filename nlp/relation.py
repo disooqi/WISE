@@ -83,7 +83,7 @@ class RelationLabeling(object):
         self.machine.add_transition(trigger='VBZ', source='unacceptable', dest='VBZ', after='add_word')
         self.machine.add_transition(trigger='IN', source='VBZ', dest='final', after='add_word')
         self.machine.add_transition(trigger='NE', source='VBZ', dest='VBZ NE')
-        self.machine.add_transition(trigger='VBN', source='VBZ NE', dest='final', after='add_word')
+        self.machine.add_transition(trigger='VBN', source=['VBP', 'VBZ NE'], dest='final', after='add_word') #Essam ID 7  == Give me all cars that are produced in Germany.
 
         self.machine.add_transition(trigger='VBG', source='unacceptable', dest='final', after='add_word')
 

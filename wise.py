@@ -206,6 +206,7 @@ class Wise:
             combinations = utils.get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=False)
 
             uris, names = list(), list()
+            URIs_chosen = None
             if destination == 'var':  # 'var' always comes in the destination part
                 for uri in combinations:
                     URIs_false, names_false = self._get_predicates_and_their_names(subj=uri)
@@ -225,7 +226,8 @@ class Wise:
                     self.question.graph[source][destination]['uris'].extend(URIs_chosen)
                     # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
 
-            logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
+            if URIs_chosen:
+                logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
 
     @staticmethod
     def __compute_semantic_similarity_between_single_word_and_word_list(word, word_list):

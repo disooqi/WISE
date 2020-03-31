@@ -204,8 +204,9 @@ class Question:
         relations_ignored = ['has', 'have', 'had', 'be', 'is', 'are', 'was', 'were', 'do', 'did', 'does',
                              'much', 'many', 'give', 'show', '',
 
-                             'song', 'party', 'belong', 'city', 'country', 'list of', 'theme', 'company', 'movie',
-                             'kind of', 'language', 'atmosphere of', 'river', 'coach of']
+                             'song', 'party', 'belong', 'city', 'state', 'country', 'list of', 'theme', 'company', 'movie',
+                             'kind of', 'language', 'atmosphere of', 'river', 'coach of', 'many gold', 'artist', 'car',
+                             'book']
         relation_labeling = RelationLabeling()
         # positions = [token['position'] for token in self.question.tokens]
         #  i = word index, w = word_text, h = Dep_head, d
@@ -247,7 +248,7 @@ class Question:
             print(relations)
 
         for i, entity, h, d, p, pos, t in s + o:
-            self.add_entity(entity, pos=pos, entity_type=t)
+            self.add_entity(entity, pos=pos, entity_type=t, uris=[])
             for relation in relations:
                 self.add_relation(entity, 'var', relation=relation, uris=[])
 
