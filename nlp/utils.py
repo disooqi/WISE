@@ -17,7 +17,7 @@ from string import punctuation
 from nltk.corpus import wordnet as wn
 
 
-nltk_POS_map = {'VB': wn.VERB, 'VBD': wn.VERB, 'VBN': wn.VERB, 'VBP': wn.VERB, 'VBZ': wn.VERB,
+nltk_POS_map = {'VB': wn.VERB, 'VBD': wn.VERB, 'VBN': wn.VERB, 'VBP': wn.VERB, 'VBZ': wn.VERB, 'VBG': wn.VERB,
                 'JJ': wn.ADJ,
                 'NN': wn.NOUN, 'NNS': wn.NOUN,
                 'RB': wn.ADV}

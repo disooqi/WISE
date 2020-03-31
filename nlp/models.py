@@ -14,6 +14,7 @@ __status__ = "debug"
 __created__ = "2020-03-30"
 from allennlp.predictors.predictor import Predictor
 from nltk.stem import WordNetLemmatizer
+import nltk
 
 
 # oie = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/openie-model.2018-08-20.tar.gz")
@@ -23,4 +24,5 @@ ner = Predictor.from_path(
 
 parser = Predictor.from_path(
     "https://s3-us-west-2.amazonaws.com/allennlp/models/biaffine-dependency-parser-ptb-2018.08.23.tar.gz")
+nltk.download('wordnet')
 lemmatizer = WordNetLemmatizer()

@@ -92,17 +92,18 @@ class RelationLabeling(object):
         self.machine.add_transition(trigger='IN', source='JJ', dest='final', after='add_word')
 
         self.machine.add_transition(trigger='NN', source='unacceptable', dest='NN', after='add_word') # 'NN', 'IN',
+        self.machine.add_transition(trigger='NN', source='NN', dest='final', after='add_word')  ## Essam cases such as time zone
         self.machine.add_transition(trigger='IN', source='NN', dest='final', after='add_word')
 
         self.machine.add_transition(trigger='NE', source='unacceptable', dest='NE')
         self.machine.add_transition(trigger='RB', source='NE', dest='final', after='add_word')
         self.machine.add_transition(trigger='NN', source='NE', dest='final', after='add_word')
 
-        self.machine.add_transition(trigger='VB', source=['NE', 'NN', 'NNS'], dest='VB', before='clean_words', after='add_word')
-        self.machine.add_transition(trigger='VBD', source=['NE', 'NN', 'NNS'], dest='VBD', before='clean_words', after='add_word')
-        self.machine.add_transition(trigger='VBD', source=['NN', 'NN', 'NNS'], dest='VBD', before='clean_words', after='add_word')
-        self.machine.add_transition(trigger='VBN', source=['NE', 'NN', 'NNS'], dest='VBN', before='clean_words', after='add_word')
-        self.machine.add_transition(trigger='VBP', source=['NE', 'NN', 'NNS'], dest='VBP', before='clean_words', after='add_word')
+        self.machine.add_transition(trigger='VB', source=['VBZ NE', 'VBD NE', 'NE', 'NN', 'NNS'], dest='VB', before='clean_words', after='add_word')
+        self.machine.add_transition(trigger='VBD', source=['VBD NE', 'NE', 'NN', 'NNS'], dest='VBD', before='clean_words', after='add_word')
+        self.machine.add_transition(trigger='VBD', source=['VBD NE', 'NN', 'NN', 'NNS'], dest='VBD', before='clean_words', after='add_word')
+        self.machine.add_transition(trigger='VBN', source=['VBD NE', 'NE', 'NN', 'NNS'], dest='VBN', before='clean_words', after='add_word')
+        self.machine.add_transition(trigger='VBP', source=['VBD NE', 'NE', 'NN', 'NNS'], dest='VBP', before='clean_words', after='add_word')
 
         self.machine.add_transition(trigger='NNS', source='unacceptable', dest='NNS', after='add_word')  # 'NN', 'IN',
         self.machine.add_transition(trigger='IN', source='NNS', dest='final', after='add_word')
@@ -110,8 +111,8 @@ class RelationLabeling(object):
     def add_word(self, word, pos):
         pos = nltk_POS_map.get(pos, pos)
         lemma = word
-        # if pos not in ['IN']:
-        #     lemma = lemmatizer.lemmatize(word, pos)
+        if pos not in ['IN', 'RB']:
+            lemma = lemmatizer.lemmatize(word, pos)
         self.words.append(lemma)
         if self.machine.get_state(self.state).is_accepted:
             self.relation.extend(self.words)
