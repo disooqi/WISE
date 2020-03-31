@@ -107,7 +107,7 @@ class Wise:
         self.detect_question_and_answer_type()
         self.rephrase_question()
         # if no named entity you should return here
-        if not self.question.graph.nodes:
+        if len(self.question.query_graph) == 0:
             return []
         self.extract_possible_V_and_E()
         self.generate_star_queries()
@@ -131,7 +131,7 @@ class Wise:
         if self.question.text.lower().startswith('who was'):
             self.question.answer_type = 'person'
             self.question.answer_datatype = 'resource'
-            self.question.add_entity('var', question_type=self.question.answer_type)
+            # self.question.add_entity('var', question_type=self.question.answer_type)
         elif self.question.text.lower().startswith('who is '):
             self.question.answer_type = 'person'
             self.question.answer_datatype = 'resource'
@@ -174,9 +174,10 @@ class Wise:
         # logger.info(f'[Question Reformulation (Not Impl yet):] {self.question.text},\n')
 
     def extract_possible_V_and_E(self):
-        for entity in self.question.entities:
+        print(' ++++++ ', self.question.query_graph.edges)
+        for entity in self.question.query_graph:
             if entity == 'var':
-                self.question.add_entity_properties(entity, uris=[])
+                self.question.query_graph.add_node(entity, uris=[], answers=[])
                 continue
             entity_query = make_keyword_unordered_search_query_with_type(entity, limit=100)
 
@@ -194,27 +195,27 @@ class Wise:
             self.v_uri_scores.update(URIs_with_scores)
             URIs_sorted = list(zip(*URIs_with_scores))[0]
             URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Vs]
-
-            self.question.add_entity_properties(entity, uris=URIs_chosen)
-
+            self.question.query_graph.nodes[entity]['uris'].extend(URIs_chosen)
             logger.info(f"[URIs for Entity '{entity}':] {URIs_chosen}")
 
         # Find E for all relations
-        for (source, destination, relation) in self.question.graph.edges.data('relation'):
-            source_URIs = self.question.graph.nodes[source]['uris']
-            destination_URIs = self.question.graph.nodes[destination]['uris']
+        for (source, destination, key, relation) in self.question.query_graph.edges(data='relation', keys=True):
+            logger2.debug(f"{source}, {destination}, {key}, {relation}")
+            source_URIs = self.question.query_graph.nodes[source]['uris']
+            destination_URIs = self.question.query_graph.nodes[destination]['uris']
             combinations = utils.get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=False)
 
             uris, names = list(), list()
-            if destination == 'var':  # 'var' always comes in the destination part
+            if source == 'var' or destination == 'var':  # 'var' always comes in the destination part
                 for uri in combinations:
                     URIs_false, names_false = self._get_predicates_and_their_names(subj=uri)
                     URIs_true, names_true = self._get_predicates_and_their_names(obj=uri)
                     URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
                     URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
                     URIs_chosen = self.__get_chosen_URIs_for_relation(relation, URIs_false + URIs_true, names_false + names_true)
-                    self.question.graph[source][destination]['uris'].extend(URIs_chosen)
+                    self.question.query_graph[source][destination][key]['uris'].extend(URIs_chosen)
                     # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
+                    logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
             else:
                 for v_uri_1, v_uri_2 in combinations:
                     URIs_false, names_false = self._get_predicates_and_their_names(v_uri_1, v_uri_2)
@@ -224,8 +225,9 @@ class Wise:
                     URIs_chosen = self.__get_chosen_URIs_for_relation(relation, URIs_false + URIs_true, names_false + names_true)
                     self.question.graph[source][destination]['uris'].extend(URIs_chosen)
                     # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
+                    logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
 
-            logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
+            #
 
     @staticmethod
     def __compute_semantic_similarity_between_single_word_and_word_list(word, word_list):
@@ -242,7 +244,7 @@ class Wise:
             return scores
 
     def __get_chosen_URIs_for_relation(self, relation: str, uris: list, names: list):
-        logger.info(f'[RELATION AFTER LEMMATIZATION:] {relation}')
+        # logger.info(f'[RELATION AFTER LEMMATIZATION:] {relation}')
         scores = self.__class__.__compute_semantic_similarity_between_single_word_and_word_list(relation, names)
         # (uri, True) ===>  (uri, True, score)
         l1, l2 = list(zip(*uris))
@@ -253,9 +255,9 @@ class Wise:
 
     def generate_star_queries(self):
         possible_triples_for_all_relations = list()
-        for source, destination, relation_uris in self.question.graph.edges.data('uris'):
-            source_URIs = self.question.graph.nodes[source]['uris']
-            destination_URIs = self.question.graph.nodes[destination]['uris']
+        for source, destination, key, relation_uris in self.question.query_graph.edges(data='uris', keys=True):
+            source_URIs = self.question.query_graph.nodes[source]['uris']
+            destination_URIs = self.question.query_graph.nodes[destination]['uris']
             node_uris = source_URIs if destination == 'var' else destination_URIs
 
             possible_triples_for_single_relation = utils.get_combination_of_two_lists(node_uris, relation_uris)

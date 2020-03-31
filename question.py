@@ -38,7 +38,7 @@ class Question:
         self.tokens = list()
         self._id = question_id
         self._question_text = question_text
-        self.graph = nx.DiGraph()
+        self.query_graph = nx.MultiGraph()
         self._answer_type = list()
         self._answer_datatype = answer_datatype
         self._parse_components = None
@@ -55,19 +55,6 @@ class Question:
     @property
     def possible_answers(self):
         return self._possible_answers
-
-    def add_entity(self, named_entity, **kwargs):
-        self.graph.add_node(named_entity, **kwargs)
-
-    def add_entity_properties(self, named_entity, **kwargs):
-        for key, value in kwargs.items():
-            self.graph.nodes[named_entity][key] = value
-
-    def add_relation(self, source, destination, **kwargs):
-        self.graph.add_edge(source, destination, **kwargs)
-
-    def add_relation_properties(self, source, destination, **kwargs):
-        self.graph.add_edge(source, destination, **kwargs)
 
     def add_possible_answer_type(self, ontology_type: str):
         self._answer_type.append(ontology_type)
@@ -97,22 +84,6 @@ class Question:
     @property
     def text(self):
         return self._question_text
-
-    @property
-    def parse_components(self):
-        return self._parse_components
-
-    @parse_components.setter
-    def parse_components(self, value):
-        self._parse_components = value
-
-    @property
-    def entities(self):
-        return list(self.graph.nodes)
-
-    @property
-    def relations(self):
-        return list(self.graph.edges)
 
     def get_entities(self):
         pass
@@ -244,14 +215,12 @@ class Question:
             print(relations)
 
         for i, entity, h, d, p, pos, t in s + o:
-            self.add_entity(entity, pos=pos, entity_type=t)
+            # TODO: This for-loop does not consider relation between two named entities
+            self.query_graph.add_node(entity, pos=pos, entity_type=t, uris=[])
             for relation in relations:
-                self.add_relation(entity, 'var', relation=relation, uris=[])
-
-        logger.debug(f"SUBJs: {self.graph.nodes}")
-        logger.debug(f"RELATION TRIPLES: {list(self.graph.edges.data('relation'))}")
-        logger.info(f'[GRAPH:] {self.entities} <===>  {self.relations}\n')
-
+                relation_key = self.query_graph.add_edge(entity, 'var', relation=relation, uris=[])
+        logger.debug(f"SUBJs: {self.query_graph.nodes}")
+        logger.info(f'[GRAPH:] {self.query_graph.edges(data=True)}\n')
 
 
 class Answer:
