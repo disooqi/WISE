@@ -191,9 +191,6 @@ class Wise:
             for comb in combinations:
                 if source == 'var' or destination == 'var':
                     URIs_false, names_false = self._get_predicates_and_their_names(subj=comb)
-                    if 'leadfigures' in names_false:
-                        idx = names_false.index('leadfigures')
-                        names_false[idx] = 'lead figures'
                     URIs_true, names_true = self._get_predicates_and_their_names(obj=comb)
                 else:
                     v_uri_1, v_uri_2 = comb
