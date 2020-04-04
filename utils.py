@@ -13,7 +13,7 @@ __email__ = "mohamed@eldesouki.ca"
 __status__ = "debug"
 __created__ = "2020-03-30"
 
-from itertools import chain, product
+from itertools import chain, product, combinations
 
 
 def get_combination_of_two_lists(list1, list2, directed=False, with_reversed=False):
@@ -21,6 +21,8 @@ def get_combination_of_two_lists(list1, list2, directed=False, with_reversed=Fal
 
     if len(lists) < 2:
         return set(chain(list1, list2))
+    else:
+        pass
 
     combinations = product(*lists, repeat=1)
     combinations_selected = list()
@@ -42,3 +44,12 @@ def get_combination_of_two_lists(list1, list2, directed=False, with_reversed=Fal
             combinations_selected.extend(combinations_reversed)
 
         return set(combinations_selected)
+
+
+def powerset(iterable, lower_bound=2, upper_bound=3):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    assert lower_bound < upper_bound
+    upper_bound = upper_bound if (upper_bound <= len(s)) else len(s)+1
+    lower_bound = lower_bound if (lower_bound >= 0) else 0
+    return chain.from_iterable(combinations(s, r) for r in range(lower_bound, upper_bound))

@@ -27,7 +27,7 @@ from sparqls import (make_keyword_unordered_search_query_with_type, make_top_pre
                      make_top_predicates_obj_query, evaluate_SPARQL_query, construct_answers_query,
                      construct_yesno_answers_query, construct_yesno_answers_query2,
                      sparql_query_to_get_predicates_when_subj_and_obj_are_known)
-# import rdflib # to construct rdf graph and return its equavilant SPARQL query
+# import rdflib # to construct rdf graph and return its equivalent SPARQL query
 
 import utils
 from question import Question
@@ -53,7 +53,6 @@ logger2.addHandler(sh)
 logger2.setLevel(logging.DEBUG)
 
 
-
 class Wise:
     """A Natural Language Platform For Querying RDF-Based Graphs
 
@@ -61,30 +60,21 @@ class Wise:
             Usage::
 
                 >>> from wise import Wise
-                >>> my_wise = Wise(semantic_afinity_server='127.0.0.1:9600', n_max_answers=10)
+                >>> my_wise = Wise(semantic_affinity_server='127.0.0.1:9600', n_max_answers=10)
 
-            :param semantic_afinity_server: A string, IP and Port for the semantic similarity server of the
+            :param semantic_affinity_server: A string, IP and Port for the semantic similarity server of the
             form ``127.0.0.1:9600``.
             :param n_max_answers: An int, the maximum number of result items return by WISE.
             :rtype: A :class:`Wise <Wise>`
             """
 
-
-    def __init__(self, semantic_afinity_server=None, n_max_answers: int = 100):
-        self._ss_server = semantic_afinity_server
+    def __init__(self, semantic_affinity_server=None, n_max_answers: int = 100):
+        self._ss_server = semantic_affinity_server
         self._n_max_answers = n_max_answers  # this should affect the number of star queries to be executed against TS
         self._current_question = None
-        self.n_max_Vs = 2
-        self.n_max_Es = 3
+        self.n_max_Vs = 1
+        self.n_max_Es = 25
         self.v_uri_scores = defaultdict(float)
-
-    @property
-    def question(self):
-        return self._current_question
-
-    @question.setter
-    def question(self, value: str):
-        self._current_question = Question(question_text=value)
 
     def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int =None):
         """WISE pipeline
@@ -102,21 +92,18 @@ class Wise:
 
         if answer_type:
             self.question.answer_datatype = answer_type
-        logger.info(f'\n{"<>" * 200}\n[Question:] {self.question.text},\n')
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
         self.detect_question_and_answer_type()
         self.rephrase_question()
         # if no named entity you should return here
-        if not self.question.graph.nodes:
+        if len(self.question.query_graph) == 0:
             return []
         self.extract_possible_V_and_E()
         self.generate_star_queries()
         self.evaluate_star_queries()
 
         answers = [answer.json() for answer in self.question.possible_answers[:n_max_answers]]
-
-        logger.info(f"[FINAL ANSWERS:] {self.question.sparqls}")
-
+        logger.info(f"\n\n\n\n{'#'*120}")
         return answers
 
     def detect_question_and_answer_type(self):
@@ -131,7 +118,7 @@ class Wise:
         if self.question.text.lower().startswith('who was'):
             self.question.answer_type = 'person'
             self.question.answer_datatype = 'resource'
-            self.question.add_entity('var', question_type=self.question.answer_type)
+            # self.question.add_entity('var', question_type=self.question.answer_type)
         elif self.question.text.lower().startswith('who is '):
             self.question.answer_type = 'person'
             self.question.answer_datatype = 'resource'
@@ -165,8 +152,6 @@ class Wise:
         else:
             pass  # 11,13,75
 
-        logger.info(f'[QUESTION TYPE:] {self.question.answer_type}, [ANSWER TYPE:] {self.question.answer_datatype},\n')
-
     def rephrase_question(self):
         if self.question.text.lower().startswith('who was'):
             pass
@@ -174,9 +159,9 @@ class Wise:
         # logger.info(f'[Question Reformulation (Not Impl yet):] {self.question.text},\n')
 
     def extract_possible_V_and_E(self):
-        for entity in self.question.entities:
+        for entity in self.question.query_graph:
             if entity == 'var':
-                self.question.add_entity_properties(entity, uris=[])
+                self.question.query_graph.add_node(entity, uris=[], answers=[])
                 continue
             entity_query = make_keyword_unordered_search_query_with_type(entity, limit=100)
 
@@ -194,40 +179,35 @@ class Wise:
             self.v_uri_scores.update(URIs_with_scores)
             URIs_sorted = list(zip(*URIs_with_scores))[0]
             URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Vs]
-
-            self.question.add_entity_properties(entity, uris=URIs_chosen)
-
-            logger.info(f"[URIs for Entity '{entity}':] {URIs_chosen}")
+            self.question.query_graph.nodes[entity]['uris'].extend(URIs_chosen)
 
         # Find E for all relations
-        for (source, destination, relation) in self.question.graph.edges.data('relation'):
-            source_URIs = self.question.graph.nodes[source]['uris']
-            destination_URIs = self.question.graph.nodes[destination]['uris']
+        for (source, destination, key, relation) in self.question.query_graph.edges(data='relation', keys=True):
+            source_URIs = self.question.query_graph.nodes[source]['uris']
+            destination_URIs = self.question.query_graph.nodes[destination]['uris']
             combinations = utils.get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=False)
 
             uris, names = list(), list()
-            URIs_chosen = None
-            if destination == 'var':  # 'var' always comes in the destination part
-                for uri in combinations:
-                    URIs_false, names_false = self._get_predicates_and_their_names(subj=uri)
-                    URIs_true, names_true = self._get_predicates_and_their_names(obj=uri)
-                    URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
-                    URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
-                    URIs_chosen = self.__get_chosen_URIs_for_relation(relation, URIs_false + URIs_true, names_false + names_true)
-                    self.question.graph[source][destination]['uris'].extend(URIs_chosen)
-                    # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
-            else:
-                for v_uri_1, v_uri_2 in combinations:
+
+            for comb in combinations:
+                if source == 'var' or destination == 'var':
+                    URIs_false, names_false = self._get_predicates_and_their_names(subj=comb)
+                    URIs_true, names_true = self._get_predicates_and_their_names(obj=comb)
+                else:
+                    v_uri_1, v_uri_2 = comb
                     URIs_false, names_false = self._get_predicates_and_their_names(v_uri_1, v_uri_2)
                     URIs_true, names_true = self._get_predicates_and_their_names(v_uri_2, v_uri_1)
-                    URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
-                    URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
-                    URIs_chosen = self.__get_chosen_URIs_for_relation(relation, URIs_false + URIs_true, names_false + names_true)
-                    self.question.graph[source][destination]['uris'].extend(URIs_chosen)
-                    # self.question.add_relation_properties(source, destination, uris=URIs_chosen)
+                URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
+                URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
+                uris.extend(URIs_false + URIs_true)
+                names.extend(names_false + names_true)
+            else:
+                URIs_chosen = self.__get_chosen_URIs_for_relation(relation, uris, names)
+                self.question.query_graph[source][destination][key]['uris'].extend(URIs_chosen)
+        else:
+            logger.info(f"[GRAPH NODES WITH URIs:] {self.question.query_graph.nodes(data=True)}")
+            logger.info(f"[GRAPH EDGES WITH URIs:] {self.question.query_graph.edges(data=True)}")
 
-            if URIs_chosen:
-                logger.info(f"[URIs for RELATION '{relation}':] {URIs_chosen}")
 
     @staticmethod
     def __compute_semantic_similarity_between_single_word_and_word_list(word, word_list):
@@ -244,7 +224,6 @@ class Wise:
             return scores
 
     def __get_chosen_URIs_for_relation(self, relation: str, uris: list, names: list):
-        logger.info(f'[RELATION AFTER LEMMATIZATION:] {relation}')
         scores = self.__class__.__compute_semantic_similarity_between_single_word_and_word_list(relation, names)
         # (uri, True) ===>  (uri, True, score)
         l1, l2 = list(zip(*uris))
@@ -255,9 +234,9 @@ class Wise:
 
     def generate_star_queries(self):
         possible_triples_for_all_relations = list()
-        for source, destination, relation_uris in self.question.graph.edges.data('uris'):
-            source_URIs = self.question.graph.nodes[source]['uris']
-            destination_URIs = self.question.graph.nodes[destination]['uris']
+        for source, destination, key, relation_uris in self.question.query_graph.edges(data='uris', keys=True):
+            source_URIs = self.question.query_graph.nodes[source]['uris']
+            destination_URIs = self.question.query_graph.nodes[destination]['uris']
             node_uris = source_URIs if destination == 'var' else destination_URIs
 
             possible_triples_for_single_relation = utils.get_combination_of_two_lists(node_uris, relation_uris)
@@ -274,11 +253,14 @@ class Wise:
 
     def evaluate_star_queries(self):
         self.question.possible_answers.sort(reverse=True)
+        # for i, possible_answer in enumerate(self.question.possible_answers):
+        #     print(i, possible_answer.sparql, possible_answer.score)
         qc = count(1)
         sparqls = list()
         for i, possible_answer in enumerate(self.question.possible_answers[:self._n_max_answers]):
+            logger.info(f"[EVALUATING SPARQL:] {possible_answer.sparql}")
             result = evaluate_SPARQL_query(possible_answer.sparql)
-            # logger2.debug(f"[RAW RESULT FROM VIRTUOSO:] {result}")
+            logger.info(f"[POSSIBLE SPARQLs WITH ANSWER (SORTED):] {possible_answer.sparql}")
             try:
                 v_result = json.loads(result)
                 possible_answer.update(results=v_result['results'], vars=v_result['head']['vars'])
@@ -286,18 +268,22 @@ class Wise:
                 for binding in v_result['results']['bindings']:
                     answer = self.__class__.extract_resource_name_from_uri(binding['var']['value'])[0]
                     answers.append(answer)
-
-                    # for var, v in binding.items():
-                    #     uri, name = self.__class__.extract_resource_name_from_uri(v['value'])
                 else:
                     if v_result['results']['bindings']:
                         logger.info(f"[POSSIBLE ANSWER {i}:] {answers}")
                     sparqls.append(possible_answer.sparql)
-
             except:
                 print(f" >>>>>>>>>>>>>>>>>>>> What the hell [{result}] <<<<<<<<<<<<<<<<<<")
         else:
             self.question.sparqls = sparqls
+
+    @property
+    def question(self):
+        return self._current_question
+
+    @question.setter
+    def question(self, value: str):
+        self._current_question = Question(question_text=value)
 
     @staticmethod
     def extract_resource_name(result_bindings):

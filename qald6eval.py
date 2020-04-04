@@ -16,10 +16,10 @@ __created__ = "2020-03-11"
 import json
 import time
 from wise import Wise
-from pprint import pprint
 from termcolor import colored, cprint
 from itertools import count
 import xml.etree.ElementTree as Et
+
 
 the_39_question_ids = (1, 3, 8, 9, 11, 13, 14, 15, 16, 17, 21, 23, 24, 26, 27, 28, 30, 31, 33, 35, 37, 39, 40, 41, 43,
                        47, 54, 56, 61, 62, 64, 68, 75, 83, 85, 92, 93, 96, 99)
@@ -50,11 +50,13 @@ if __name__ == '__main__':
         # if int(question['id']) not in [4, 32, 113, 164, 206, 43]:
         #     continue
 
+        if int(question['id']) in [32, 113, 164, 206, 43]:
+            continue
+
         print("question['id'] = ", question['id'])
 
+
         qc = next(count39)
-        # if qc > 1:
-        #     break
         # if question["id"] != 9:
         #     continue
 
@@ -64,25 +66,33 @@ if __name__ == '__main__':
                 question_text = language_variant_question['string'].strip()
                 break
 
+        text = colored(f"[PROCESSING: ] Question count: {qc}, ID {question['id']}  >>> {question_text}", 'blue',
+                       attrs=['reverse', 'blink'])
+        cprint(f"== {text}  ")
+
         st = time.time()
         # question_text = 'Which movies starring Brad Pitt were directed by Guy Ritchie?'
         # question_text = 'When did the Boston Tea Party take place and led by whom?'
-        # question_text = 'Which airports are located in California, USA?'
-        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=20)
+
+        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=40)
+
 
         all_bindings = list()
         for answer in answers:
             if answer['results'] and answer['results']['bindings']:
                 all_bindings.extend(answer['results']['bindings'])
 
-        if 'results' in question['answers'][0]:
-            question['answers'][0]['results']['bindings'] = all_bindings.copy()
-            wise_qald6['questions'].append(question)
-            all_bindings.clear()
+        try:
+            if 'results' in question['answers'][0]:
+                question['answers'][0]['results']['bindings'] = all_bindings.copy()
+                wise_qald6['questions'].append(question)
+                all_bindings.clear()
+        except:
+            question['answers'] = []
 
         et = time.time()
-        text = colored(f'[{et-st:.2f} sec]', 'yellow', attrs=['reverse', 'blink'])
-        cprint(f"== Question count: {qc}, ID {question['id']}  == {question_text} {text}")
+        text = colored(f'[DONE!! in {et-st:.2f} SECs]', 'green', attrs=['bold', 'reverse', 'blink', 'dark'])
+        cprint(f"== {text} ==")
 
         # break
 
