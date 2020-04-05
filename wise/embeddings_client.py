@@ -1,10 +1,7 @@
-import sys
 import socket
 import selectors
 import traceback
-import libclient
-
-
+from wise import libclient
 
 
 def create_request(word1, word2):
@@ -61,6 +58,6 @@ def n_similarity(mwe1, mwe2):
 
 
 if __name__ == '__main__':
-    sim = n_similarity(['portrayer'], ['played'])
+    sim = n_similarity(['led by'], ['lead figures'])
     # sim = n_similarity(['mohamed'], ['ahmed'])
     print(sim)

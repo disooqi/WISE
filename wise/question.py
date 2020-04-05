@@ -15,10 +15,10 @@ __created__ = "2020-03-05"
 
 import logging
 import networkx as nx
-from nlp.relation import RelationLabeling
+from wise.nlp.relation import RelationLabeling
 from transitions.core import MachineError
-from nlp.utils import nltk_POS_map, traverse_tree, table, punctuation
-from nlp.models import ner, parser
+from wise.nlp.utils import traverse_tree, table, punctuation
+from wise.nlp.models import ner, parser
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:

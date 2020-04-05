@@ -1,7 +1,7 @@
 #!./venv python
 # -*- coding: utf-8 -*-
 """
-evaluation.py: evaluating WISE online service against QALD-3 benchmark
+evaluation.py: evaluating WISE online service against QALD-6 benchmark
 """
 __author__ = "Mohamed Eldesouki"
 __copyright__ = "Copyright 2020, CODS Lab, GINA CODY SCHOOL OF ENGINEERING AND COMPUTER SCIENCE, CONCORDIA UNIVERSITY"
@@ -15,7 +15,7 @@ __created__ = "2020-03-11"
 
 import json
 import time
-from wise import Wise
+from wise.wise import Wise
 from termcolor import colored, cprint
 from itertools import count
 import xml.etree.ElementTree as Et
@@ -23,7 +23,7 @@ import xml.etree.ElementTree as Et
 
 the_39_question_ids = (1, 3, 8, 9, 11, 13, 14, 15, 16, 17, 21, 23, 24, 26, 27, 28, 30, 31, 33, 35, 37, 39, 40, 41, 43,
                        47, 54, 56, 61, 62, 64, 68, 75, 83, 85, 92, 93, 96, 99)
-file_name = r"qald6/qald-6-test-multilingual.json"
+file_name = r"/home/disooqi/projects/wise/evaluation/qald6/qald-6-test-multilingual.json"
 
 # word_vectors = api.load("wiki-news-300d-1m")  # load pre-trained word-vectors from gensim-data
 
@@ -47,8 +47,8 @@ if __name__ == '__main__':
         #     continue
 
         qc = next(count39)
-        # if question["id"] != 9:
-        #     continue
+        if question["id"] != 1:
+            continue
 
         # question_text = ''
         for language_variant_question in question['question']:
@@ -82,7 +82,7 @@ if __name__ == '__main__':
         text = colored(f'[DONE!! in {et-st:.2f} SECs]', 'green', attrs=['bold', 'reverse', 'blink', 'dark'])
         cprint(f"== {text} ==")
 
-        # break
+        break
 
     with open(f'output/WISE_result_{timestr}.json', encoding='utf-8', mode='w') as rfobj:
         json.dump(wise_qald6, rfobj)

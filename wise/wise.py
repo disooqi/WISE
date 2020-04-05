@@ -20,19 +20,15 @@ import operator
 import logging
 from collections import defaultdict
 from itertools import count, product, zip_longest
-from statistics import mean
 from urllib.parse import urlparse
-from gensim.parsing.preprocessing import remove_stopwords, STOPWORDS
-from sparqls import (make_keyword_unordered_search_query_with_type, make_top_predicates_sbj_query,
-                     make_top_predicates_obj_query, evaluate_SPARQL_query, construct_answers_query,
-                     construct_yesno_answers_query, construct_yesno_answers_query2,
-                     sparql_query_to_get_predicates_when_subj_and_obj_are_known)
+from wise.sparqls import (make_keyword_unordered_search_query_with_type, make_top_predicates_sbj_query,
+                          make_top_predicates_obj_query, evaluate_SPARQL_query,
+                          sparql_query_to_get_predicates_when_subj_and_obj_are_known)
 # import rdflib # to construct rdf graph and return its equivalent SPARQL query
 
-import utils
-from question import Question
-from nlp.utils import remove_duplicates
-import embeddings_client as w2v
+from wise.question import Question
+from wise.nlp.utils import remove_duplicates
+from wise import embeddings_client as w2v, utils
 
 formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
 

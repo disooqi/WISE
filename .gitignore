@@ -2,8 +2,8 @@ allennlp-playground.py
 QALD-6_test_processed.txt
 format_oie.py
 networkx-playground.py
-nlp/my_state_diagram.png
-nlp/test-output/
+wise/nlp/my_state_diagram.png
+wise/nlp/test-output/
 output/
 # qald6/qald6.py
 word_embedding/dbpedia.ftz

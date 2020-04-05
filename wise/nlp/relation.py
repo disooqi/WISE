@@ -15,11 +15,10 @@ __created__ = "2020-03-28"
 
 # from transitions import Machine
 from transitions.core import MachineError
-from transitions.extensions import MachineFactory, GraphMachine as Machine
+from transitions.extensions import GraphMachine as Machine
 from transitions.extensions.states import add_state_features, Tags
-import os, sys, inspect
-from nlp.models import WordNetLemmatizer
-from nlp.utils import nltk_POS_map
+from wise.nlp.models import WordNetLemmatizer
+from wise.nlp.utils import nltk_POS_map
 
 # cmd_folder = os.path.realpath(
 #     os.path.dirname(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0])))
@@ -129,6 +128,11 @@ class RelationLabeling(object):
         self.relation.clear()
         self.words.clear()
         self.to_unacceptable()
+
+    # graph object is created by the machine
+    def show_graph(self, **kwargs):
+        # https://github.com/pytransitions/transitions/blob/master/examples/Graph%20MIxin%20Demo.ipynb
+        wise_relation_extractor.get_graph().draw('relation_diagram.png', prog='dot', format='png')
 
 
 if __name__ == '__main__':
