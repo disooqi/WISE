@@ -88,7 +88,7 @@ class WordEmbeddings:
 
 
 if __name__ == '__main__':
-    wiki_model = WordEmbeddings(r'/home/disooqi/projects/wise/word_embedding/wiki-news-300d-1M.txt')
+    wiki_model = WordEmbeddings(r'/wise/word_embedding/wiki-news-300d-1M.txt')
     wiki_model.load_model()
     print('Done loading')
     print("ss: " + str(wiki_model.semantic_distance(wiki_model.get_embedding_for_word("wife"),

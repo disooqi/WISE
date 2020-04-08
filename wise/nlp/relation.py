@@ -5,11 +5,11 @@ WISE: Natural Language Platform to Query Knowledge bases
 """
 __author__ = "Mohamed Eldesouki"
 __copyright__ = "Copyright 2020-29, GINA CODY SCHOOL OF ENGINEERING AND COMPUTER SCIENCE, CONCORDIA UNIVERSITY"
-__credits__ = ["Mohamed Eldesouki"]
+__credits__ = ["Mohamed Eldesouki", "Essam Mansour"]
 __license__ = "GPL"
 __version__ = "0.0.1"
 __maintainer__ = "CODS Lab"
-__email__ = "mohamed@eldesouki.ca"
+__email__ = "cods@eldesouki.ca"
 __status__ = "debug"
 __created__ = "2020-03-28"
 

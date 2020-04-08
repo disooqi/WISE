@@ -5,11 +5,11 @@ WISE: Natural Language Platform to Query Knowledge bases
 """
 __author__ = "Mohamed Eldesouki"
 __copyright__ = "Copyright 2020-29, GINA CODY SCHOOL OF ENGINEERING AND COMPUTER SCIENCE, CONCORDIA UNIVERSITY"
-__credits__ = ["Mohamed Eldesouki"]
+__credits__ = ["Mohamed Eldesouki", "Essam Mansour"]
 __license__ = "GPL"
 __version__ = "0.0.1"
 __maintainer__ = "CODS Lab"
-__email__ = "mohamed@eldesouki.ca"
+__email__ = "cods@eldesouki.ca"
 __status__ = "debug"
 __created__ = "2020-03-05"
 
@@ -21,14 +21,10 @@ import logging
 from collections import defaultdict
 from itertools import count, product, zip_longest
 from urllib.parse import urlparse
-from wise.sparqls import (make_keyword_unordered_search_query_with_type, make_top_predicates_sbj_query,
-                          make_top_predicates_obj_query, evaluate_SPARQL_query,
-                          sparql_query_to_get_predicates_when_subj_and_obj_are_known)
-# import rdflib # to construct rdf graph and return its equivalent SPARQL query
-
-from wise.question import Question
-from wise.nlp.utils import remove_duplicates
-from wise import embeddings_client as w2v, utils
+from .sparqls import *
+from .question import Question
+from .nlp.utils import remove_duplicates
+from . import embeddings_client as w2v, utils
 
 formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
 
@@ -47,6 +43,9 @@ sh = logging.StreamHandler()
 sh.setFormatter(formatter)
 logger2.addHandler(sh)
 logger2.setLevel(logging.DEBUG)
+
+
+__all__ = ['Wise']
 
 
 class Wise:
@@ -89,20 +88,20 @@ class Wise:
         if answer_type:
             self.question.answer_datatype = answer_type
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
-        self.detect_question_and_answer_type()
-        self.rephrase_question()
+        self.__detect_question_and_answer_type()
+        self.__rephrase_question()
         # if no named entity you should return here
         if len(self.question.query_graph) == 0:
             return []
-        self.extract_possible_V_and_E()
-        self.generate_star_queries()
-        self.evaluate_star_queries()
+        self.__extract_possible_V_and_E()
+        self.__generate_star_queries()
+        self.__evaluate_star_queries()
 
         answers = [answer.json() for answer in self.question.possible_answers[:n_max_answers]]
         logger.info(f"\n\n\n\n{'#'*120}")
         return answers
 
-    def detect_question_and_answer_type(self):
+    def __detect_question_and_answer_type(self):
         # question_text = question_text.lower()
         # if question_text.startswith('Who'):
         #     question_text = re.sub('Who', 'Mohamed', question_text)
@@ -148,26 +147,26 @@ class Wise:
         else:
             pass  # 11,13,75
 
-    def rephrase_question(self):
+    def __rephrase_question(self):
         if self.question.text.lower().startswith('who was'):
             pass
 
         # logger.info(f'[Question Reformulation (Not Impl yet):] {self.question.text},\n')
 
-    def extract_possible_V_and_E(self):
+    def __extract_possible_V_and_E(self):
         for entity in self.question.query_graph:
             if entity == 'var':
                 self.question.query_graph.add_node(entity, uris=[], answers=[])
                 continue
-            entity_query = make_keyword_unordered_search_query_with_type(entity, limit=100)
+            entity_query = _make_keyword_unordered_search_query_with_type(entity, limit=100)
 
             try:
-                entity_result = json.loads(evaluate_SPARQL_query(entity_query))
+                entity_result = json.loads(_evaluate_SPARQL_query(entity_query))
             except:
                 logger.error(f"Error at 'extract_possible_V_and_E' method with v_query value of {entity_query} ")
                 continue
 
-            uris, names = self.__class__.extract_resource_name(entity_result['results']['bindings'])
+            uris, names = self.__class__.__extract_resource_name(entity_result['results']['bindings'])
             scores = self.__compute_semantic_similarity_between_single_word_and_word_list(entity, names)
 
             URIs_with_scores = list(zip(uris, scores))
@@ -186,12 +185,12 @@ class Wise:
             uris, names = list(), list()
             for comb in combinations:
                 if source == 'var' or destination == 'var':
-                    URIs_false, names_false = self._get_predicates_and_their_names(subj=comb)
-                    URIs_true, names_true = self._get_predicates_and_their_names(obj=comb)
+                    URIs_false, names_false = self.__get_predicates_and_their_names(subj=comb)
+                    URIs_true, names_true = self.__get_predicates_and_their_names(obj=comb)
                 else:
                     v_uri_1, v_uri_2 = comb
-                    URIs_false, names_false = self._get_predicates_and_their_names(v_uri_1, v_uri_2)
-                    URIs_true, names_true = self._get_predicates_and_their_names(v_uri_2, v_uri_1)
+                    URIs_false, names_false = self.__get_predicates_and_their_names(v_uri_1, v_uri_2)
+                    URIs_true, names_true = self.__get_predicates_and_their_names(v_uri_2, v_uri_1)
                 URIs_false = list(zip_longest(URIs_false, [False], fillvalue=False))
                 URIs_true = list(zip_longest(URIs_true, [True], fillvalue=True))
                 uris.extend(URIs_false + URIs_true)
@@ -226,7 +225,7 @@ class Wise:
         # self.uri_scores.update(URIs_with_scores)
         return remove_duplicates(URIs_with_scores)[:self.n_max_Es]
 
-    def generate_star_queries(self):
+    def __generate_star_queries(self):
         possible_triples_for_all_relations = list()
         for source, destination, key, relation_uris in self.question.query_graph.edges(data='uris', keys=True):
             source_URIs = self.question.query_graph.nodes[source]['uris']
@@ -245,7 +244,7 @@ class Wise:
                 query = f"SELECT * WHERE {{ {' . '.join(triple)} }}"
                 self.question.add_possible_answer(question=self.question.text, sparql=query, score=score)
 
-    def evaluate_star_queries(self):
+    def __evaluate_star_queries(self):
         self.question.possible_answers.sort(reverse=True)
         # for i, possible_answer in enumerate(self.question.possible_answers):
         #     print(i, possible_answer.sparql, possible_answer.score)
@@ -253,14 +252,14 @@ class Wise:
         sparqls = list()
         for i, possible_answer in enumerate(self.question.possible_answers[:self._n_max_answers]):
             logger.info(f"[EVALUATING SPARQL:] {possible_answer.sparql}")
-            result = evaluate_SPARQL_query(possible_answer.sparql)
+            result = _evaluate_SPARQL_query(possible_answer.sparql)
             logger.info(f"[POSSIBLE SPARQLs WITH ANSWER (SORTED):] {possible_answer.sparql}")
             try:
                 v_result = json.loads(result)
                 possible_answer.update(results=v_result['results'], vars=v_result['head']['vars'])
                 answers = list()
                 for binding in v_result['results']['bindings']:
-                    answer = self.__class__.extract_resource_name_from_uri(binding['var']['value'])[0]
+                    answer = self.__class__.__extract_resource_name_from_uri(binding['var']['value'])[0]
                     answers.append(answer)
                 else:
                     if v_result['results']['bindings']:
@@ -280,7 +279,7 @@ class Wise:
         self._current_question = Question(question_text=value)
 
     @staticmethod
-    def extract_resource_name(result_bindings):
+    def __extract_resource_name(result_bindings):
         resource_names = list()
         resource_URIs = list()
         for binding in result_bindings:
@@ -300,7 +299,7 @@ class Wise:
         return resource_URIs, resource_names
 
     @staticmethod
-    def extract_resource_name_from_uri(uri: str):
+    def __extract_resource_name_from_uri(uri: str):
         resource_URI = uri
         uri_path = urlparse(resource_URI).path
         resource_name = os.path.basename(uri_path)
@@ -310,7 +309,7 @@ class Wise:
         return resource_URI, resource_name
 
     @staticmethod
-    def extract_predicate_names(result_bindings):
+    def __extract_predicate_names(result_bindings):
         predicate_URIs = list()
         predicate_names = list()
         for binding in result_bindings:
@@ -328,25 +327,25 @@ class Wise:
         return predicate_URIs, predicate_names
 
     @staticmethod
-    def _get_predicates_and_their_names(subj=None, obj=None):
+    def __get_predicates_and_their_names(subj=None, obj=None):
         if subj and obj:
-            q = sparql_query_to_get_predicates_when_subj_and_obj_are_known(subj, obj, limit=100)
-            uris, names = Wise.execute_sparql_query_and_get_uri_and_name_lists(q)
+            q = _sparql_query_to_get_predicates_when_subj_and_obj_are_known(subj, obj, limit=100)
+            uris, names = Wise.__execute_sparql_query_and_get_uri_and_name_lists(q)
         elif subj:
-            q = make_top_predicates_sbj_query(subj, limit=100)
-            uris, names = Wise.execute_sparql_query_and_get_uri_and_name_lists(q)
+            q = _make_top_predicates_sbj_query(subj, limit=100)
+            uris, names = Wise.__execute_sparql_query_and_get_uri_and_name_lists(q)
         elif obj:
-            q = make_top_predicates_obj_query(obj, limit=100)
-            uris, names = Wise.execute_sparql_query_and_get_uri_and_name_lists(q)
+            q = _make_top_predicates_obj_query(obj, limit=100)
+            uris, names = Wise.__execute_sparql_query_and_get_uri_and_name_lists(q)
         else:
             raise Exception
 
         return uris, names
 
     @staticmethod
-    def execute_sparql_query_and_get_uri_and_name_lists(q):
-        result = json.loads(evaluate_SPARQL_query(q))
-        return Wise.extract_predicate_names(result['results']['bindings'])
+    def __execute_sparql_query_and_get_uri_and_name_lists(q):
+        result = json.loads(_evaluate_SPARQL_query(q))
+        return Wise.__extract_predicate_names(result['results']['bindings'])
 
 
 if __name__ == '__main__':
