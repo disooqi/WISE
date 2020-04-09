@@ -1,7 +1,6 @@
-allennlp-playground.py
+playgrounds/
 QALD-6_test_processed.txt
 format_oie.py
-networkx-playground.py
 wise/nlp/my_state_diagram.png
 wise/nlp/test-output/
 output/

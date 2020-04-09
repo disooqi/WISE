@@ -14,6 +14,7 @@ __status__ = "debug"
 __created__ = "2020-03-30"
 
 from itertools import chain, product, combinations
+import logging
 
 
 def get_combination_of_two_lists(list1, list2, directed=False, with_reversed=False):
@@ -53,3 +54,4 @@ def powerset(iterable, lower_bound=2, upper_bound=3):
     upper_bound = upper_bound if (upper_bound <= len(s)) else len(s)+1
     lower_bound = lower_bound if (lower_bound >= 0) else 0
     return chain.from_iterable(combinations(s, r) for r in range(lower_bound, upper_bound))
+

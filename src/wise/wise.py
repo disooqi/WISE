@@ -52,7 +52,6 @@ class Wise:
     """A Natural Language Platform For Querying RDF-Based Graphs
 
             Usage::
-            Usage::
 
                 >>> from wise import Wise
                 >>> my_wise = Wise(semantic_affinity_server='127.0.0.1:9600', n_max_answers=10)
@@ -71,7 +70,8 @@ class Wise:
         self.n_max_Es = 3
         self.v_uri_scores = defaultdict(float)
 
-    def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int =None):
+    def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int =None,
+            answer_format: str = 'qald'):
         """WISE pipeline
 
         Usage::
@@ -80,7 +80,11 @@ class Wise:
             >>> my_wise = Wise()
             >>> my_wise.ask("What is the longest river?")
 
-
+        :param question_text: A string, the question to be answered by WISE.
+        :param n_max_answers: An int, the maximum number of result items return by WISE.
+        :param answer_format: A string, format of answers return by WISE. values: "qald", "list", "string",
+        "bool", "number".
+        :rtype: A :class:`dict <dict>`
         """
         self.question = question_text
         # self.question.id = question_id
@@ -351,3 +355,5 @@ class Wise:
 if __name__ == '__main__':
     my_wise = Wise()
     my_wise.ask(question_text='Which movies starring Brad Pitt were directed by Guy Ritchie?', n_max_answers=1)
+
+

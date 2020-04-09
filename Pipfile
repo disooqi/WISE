@@ -4,6 +4,12 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+sphinx = "*"
+setuptools = "*"
+wheel = "*"
+sphinxcontrib-napoleon = "*"
+recommonmark = "*"
+sphinx-rtd-theme = "*"
 
 [packages]
 transitions = "==0.8.0"

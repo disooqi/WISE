@@ -1,6 +1,5 @@
-<div align="center">
-  <img src="https://github.com/CoDS-GCS/WISE/blob/dev/logo.png" />
-</div>
+<!-- https://guides.github.com/features/mastering-markdown/ -->
+![Image of Yaktocat](https://github.com/CoDS-GCS/WISE/blob/dev/logo.png)
 
 * WISE has been developed using Python 3.7
 * Make sure you create a virtual environment, activated it and the thin pip install the requirement.txt file comes with the project. 
@@ -9,49 +8,20 @@
 
 WISE Project is work under development; expect some abnormality during installing and using the software.
 
-Evaluation
-===========
-To evaluate the system on QALD dataset.
+License: Not determined yet!
 
-QALD 6 or Later
-------------------
-`sudo apt-get remove --purge ruby-full`
+Documentation: https://wise.eldesouki.ca
 
-`sudo apt-get update`
+Usage
+-----
+First you need to import wise 
 
-`sudo apt-get install git-core curl zlib1g-dev build-essential libssl-dev libreadline-dev libyaml-dev libsqlite3-dev sqlite3 
-libxml2-dev libxslt1-dev libcurl4-openssl-dev software-properties-common libffi-dev`
+``from wise import Wise``
 
-`cd`
+and then create an instance as following:
 
-`git clone https://github.com/rbenv/rbenv.git ~/.rbenv`
+``wisely = Wise()``
 
-`echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc`
-
-`echo 'eval "$(rbenv init -)"' >> ~/.bashrc`
-
-`exec $SHELL`
-
-`git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build`
-
-`echo 'export PATH="$HOME/.rbenv/plugins/ruby-build/bin:$PATH"' >> ~/.bashrc`
-
-`exec $SHELL`
-
-`rbenv install 2.7.0`
-
-`rbenv global 2.7.0`
-
-`gem install bundler`
-
-`rbenv rehash`
-
-`gem install nokogiri mustache multiset`
-
-`git clone https://github.com/ag-sc/QALD.git`
-
-Rename `QALD/6/data/qald-6-test-multilingual.json` into `QALD/6/data/dbpedia-test.json`
-
-`cd projects/QALD/6/scripts/`
-
-`ruby evaluation.rb wise/output/WISE_result_20200325-163649.json`
+and then
+ 
+ ``answers = wisely.ask("Who was the doctoral supervisor of Albert Einstein?")``

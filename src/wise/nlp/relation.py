@@ -17,14 +17,9 @@ __created__ = "2020-03-28"
 from transitions.core import MachineError
 from transitions.extensions import GraphMachine as Machine
 from transitions.extensions.states import add_state_features, Tags
-from wise.nlp.models import WordNetLemmatizer
-from wise.nlp.utils import nltk_POS_map
+from .models import WordNetLemmatizer
+from .utils import nltk_POS_map
 
-# cmd_folder = os.path.realpath(
-#     os.path.dirname(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0])))
-#
-# if cmd_folder not in sys.path:
-#     sys.path.insert(0, cmd_folder)
 
 lemmatizer = WordNetLemmatizer()
 

@@ -16,7 +16,7 @@ __date__ = "2020-03-12"
 import socket
 import selectors
 import traceback
-from wise import libclient
+from . import libclient
 
 
 def create_request(word1, word2):
