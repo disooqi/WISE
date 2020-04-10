@@ -227,6 +227,9 @@ class Wise:
             return scores
 
     def __get_chosen_URIs_for_relation(self, relation: str, uris: list, names: list):
+        if not uris:
+            return uris
+
         scores = self.__class__.__compute_semantic_similarity_between_single_word_and_word_list(relation, names)
         # (uri, True) ===>  (uri, True, score)
         l1, l2 = list(zip(*uris))
