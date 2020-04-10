@@ -97,7 +97,8 @@ class Wise:
         self.__detect_question_and_answer_type()
         self.__rephrase_question()
         # if no named entity you should return here
-        if len(self.__question.query_graph) == 0:
+        if len(self.__question.query_graph) == 0 or not self.__question.query_graph.edges:
+            logger.info("[NO Named-entity or NO Relation Detected]")
             return []
         self.__extract_possible_V_and_E()
         self.__generate_star_queries()
