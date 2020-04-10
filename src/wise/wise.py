@@ -44,7 +44,6 @@ sh.setFormatter(formatter)
 logger2.addHandler(sh)
 logger2.setLevel(logging.DEBUG)
 
-
 __all__ = ['Wise']
 
 
@@ -65,13 +64,13 @@ class Wise:
     def __init__(self, semantic_affinity_server=None, n_max_answers: int = 100):
         self._ss_server = semantic_affinity_server
         self._n_max_answers = n_max_answers  # this should affect the number of star queries to be executed against TS
-        self._current_question = None
+        self.__question = None
         self.n_max_Vs = 2
         self.n_max_Es = 3
         self.v_uri_scores = defaultdict(float)
 
-    def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int =None,
-            answer_format: str = 'qald'):
+    def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int = None,
+            answer_format: str = 'qald', merge_answers: bool = False, n_max_query_eval: int = 10):
         """WISE pipeline
 
         Usage::
@@ -80,29 +79,33 @@ class Wise:
             >>> my_wise = Wise()
             >>> my_wise.ask("What is the longest river?")
 
+        :param n_max_query_eval:
+        :param question_id:
+        :param answer_type:
+        :param merge_answers:
         :param question_text: A string, the question to be answered by WISE.
         :param n_max_answers: An int, the maximum number of result items return by WISE.
         :param answer_format: A string, format of answers return by WISE. values: "qald", "list", "string",
         "bool", "number".
         :rtype: A :class:`dict <dict>`
         """
-        self.question = question_text
-        # self.question.id = question_id
+        self.__question = Question(question_id=question_id, question_text=question_text)
 
         if answer_type:
-            self.question.answer_datatype = answer_type
+            self.__question.answer_datatype = answer_type
         self._n_max_answers = n_max_answers if n_max_answers else self._n_max_answers
         self.__detect_question_and_answer_type()
         self.__rephrase_question()
         # if no named entity you should return here
-        if len(self.question.query_graph) == 0:
+        if len(self.__question.query_graph) == 0:
             return []
         self.__extract_possible_V_and_E()
         self.__generate_star_queries()
         self.__evaluate_star_queries()
 
-        answers = [answer.json() for answer in self.question.possible_answers[:n_max_answers]]
-        logger.info(f"\n\n\n\n{'#'*120}")
+        answers = self.__question.format_answers(merge_answers)
+
+        logger.info(f"\n\n\n{'#' * 120}")
         return answers
 
     def __detect_question_and_answer_type(self):
@@ -114,62 +117,63 @@ class Wise:
         # what is the name
         # what country
 
-        if self.question.text.lower().startswith('who was'):
-            self.question.answer_type = 'person'
-            self.question.answer_datatype = 'resource'
+        if self.__question.text.lower().startswith('who was'):
+            self.__question.answer_type = 'person'
+            self.__question.answer_datatype = 'resource'
             # self.question.add_entity('var', question_type=self.question.answer_type)
-        elif self.question.text.lower().startswith('who is '):
-            self.question.answer_type = 'person'
-            self.question.answer_datatype = 'resource'
-        elif self.question.text.lower().startswith('who are '):
-            self.question.answer_type = 'person'
-            self.question.answer_datatype = 'list'
-        elif self.question.text.lower().startswith('who '):  # Who [V]
-            self.question.answer_type = 'person'
-            self.question.answer_datatype = 'resource'  # of list
-        elif self.question.text.lower().startswith('how many '):
-            self.question.answer_type = 'count'
-            self.question.answer_datatype = 'number'
-        elif self.question.text.lower().startswith('how much '):
-            self.question.answer_type = 'price'
-            self.question.answer_datatype = 'number'
-        elif self.question.text.lower().startswith('when did '):
-            self.question.answer_type = 'date'
-            self.question.answer_datatype = 'date'
-        elif self.question.text.lower().startswith('in which '):  # In which [NNS], In which city
-            self.question.answer_type = 'person'
-            self.question.answer_datatype = 'resource'  # of list
-        elif self.question.text.lower().startswith('which '):  # which [NNS], which actors
-            self.question.answer_type = 'person'
-            self.question.answer_datatype = 'list'  # of list
-        elif self.question.text.lower().startswith('where '):  # where do
-            self.question.answer_type = 'person'
-            self.question.answer_datatype = 'resource'  # of list
-        elif self.question.text.lower().startswith('show '):  # Show ... all
-            self.question.answer_type = 'person'
-            self.question.answer_datatype = 'list'  # of list
+        elif self.__question.text.lower().startswith('who is '):
+            self.__question.answer_type = 'person'
+            self.__question.answer_datatype = 'resource'
+        elif self.__question.text.lower().startswith('who are '):
+            self.__question.answer_type = 'person'
+            self.__question.answer_datatype = 'list'
+        elif self.__question.text.lower().startswith('who '):  # Who [V]
+            self.__question.answer_type = 'person'
+            self.__question.answer_datatype = 'resource'  # of list
+        elif self.__question.text.lower().startswith('how many '):
+            self.__question.answer_type = 'count'
+            self.__question.answer_datatype = 'number'
+        elif self.__question.text.lower().startswith('how much '):
+            self.__question.answer_type = 'price'
+            self.__question.answer_datatype = 'number'
+        elif self.__question.text.lower().startswith('when did '):
+            self.__question.answer_type = 'date'
+            self.__question.answer_datatype = 'date'
+        elif self.__question.text.lower().startswith('in which '):  # In which [NNS], In which city
+            self.__question.answer_type = 'person'
+            self.__question.answer_datatype = 'resource'  # of list
+        elif self.__question.text.lower().startswith('which '):  # which [NNS], which actors
+            self.__question.answer_type = 'person'
+            self.__question.answer_datatype = 'list'  # of list
+        elif self.__question.text.lower().startswith('where '):  # where do
+            self.__question.answer_type = 'person'
+            self.__question.answer_datatype = 'resource'  # of list
+        elif self.__question.text.lower().startswith('show '):  # Show ... all
+            self.__question.answer_type = 'person'
+            self.__question.answer_datatype = 'list'  # of list
         else:
             pass  # 11,13,75
 
     def __rephrase_question(self):
-        if self.question.text.lower().startswith('who was'):
+        if self.__question.text.lower().startswith('who was'):
             pass
 
         # logger.info(f'[Question Reformulation (Not Impl yet):] {self.question.text},\n')
 
     def __extract_possible_V_and_E(self):
-        for entity in self.question.query_graph:
+        for entity in self.__question.query_graph:
             if entity == 'var':
-                self.question.query_graph.add_node(entity, uris=[], answers=[])
+                self.__question.query_graph.add_node(entity, uris=[], answers=[])
                 continue
             entity_query = _make_keyword_unordered_search_query_with_type(entity, limit=100)
 
             try:
+                # TODO: ISSUE #1
                 entity_result = json.loads(_evaluate_SPARQL_query(entity_query))
             except:
                 logger.error(f"Error at 'extract_possible_V_and_E' method with v_query value of {entity_query} ")
                 continue
-
+            # TODO: What if V = {} for some NE; should we remove it from graph or keep it and deal with graph as it is?!
             uris, names = self.__class__.__extract_resource_name(entity_result['results']['bindings'])
             scores = self.__compute_semantic_similarity_between_single_word_and_word_list(entity, names)
 
@@ -178,12 +182,14 @@ class Wise:
             self.v_uri_scores.update(URIs_with_scores)
             URIs_sorted = list(zip(*URIs_with_scores))[0]
             URIs_chosen = remove_duplicates(URIs_sorted)[:self.n_max_Vs]
-            self.question.query_graph.nodes[entity]['uris'].extend(URIs_chosen)
+            self.__question.query_graph.nodes[entity]['uris'].extend(URIs_chosen)
+        # else:
+        #     logger2.debug(f"[NODES]")
 
         # Find E for all relations
-        for (source, destination, key, relation) in self.question.query_graph.edges(data='relation', keys=True):
-            source_URIs = self.question.query_graph.nodes[source]['uris']
-            destination_URIs = self.question.query_graph.nodes[destination]['uris']
+        for (source, destination, key, relation) in self.__question.query_graph.edges(data='relation', keys=True):
+            source_URIs = self.__question.query_graph.nodes[source]['uris']
+            destination_URIs = self.__question.query_graph.nodes[destination]['uris']
             combinations = utils.get_combination_of_two_lists(source_URIs, destination_URIs, with_reversed=False)
 
             uris, names = list(), list()
@@ -201,10 +207,10 @@ class Wise:
                 names.extend(names_false + names_true)
             else:
                 URIs_chosen = self.__get_chosen_URIs_for_relation(relation, uris, names)
-                self.question.query_graph[source][destination][key]['uris'].extend(URIs_chosen)
+                self.__question.query_graph[source][destination][key]['uris'].extend(URIs_chosen)
         else:
-            logger.info(f"[GRAPH NODES WITH URIs:] {self.question.query_graph.nodes(data=True)}")
-            logger.info(f"[GRAPH EDGES WITH URIs:] {self.question.query_graph.edges(data=True)}")
+            logger.info(f"[GRAPH NODES WITH URIs:] {self.__question.query_graph.nodes(data=True)}")
+            logger.info(f"[GRAPH EDGES WITH URIs:] {self.__question.query_graph.edges(data=True)}")
 
     @staticmethod
     def __compute_semantic_similarity_between_single_word_and_word_list(word, word_list):
@@ -231,56 +237,29 @@ class Wise:
 
     def __generate_star_queries(self):
         possible_triples_for_all_relations = list()
-        for source, destination, key, relation_uris in self.question.query_graph.edges(data='uris', keys=True):
-            source_URIs = self.question.query_graph.nodes[source]['uris']
-            destination_URIs = self.question.query_graph.nodes[destination]['uris']
+        for source, destination, key, relation_uris in self.__question.query_graph.edges(data='uris', keys=True):
+            source_URIs = self.__question.query_graph.nodes[source]['uris']
+            destination_URIs = self.__question.query_graph.nodes[destination]['uris']
             node_uris = source_URIs if destination == 'var' else destination_URIs
 
             possible_triples_for_single_relation = utils.get_combination_of_two_lists(node_uris, relation_uris)
             possible_triples_for_all_relations.append(possible_triples_for_single_relation)
         else:
             for star_query in product(*possible_triples_for_all_relations):
-                score = sum([self.v_uri_scores[subj]+predicate[2] for subj, predicate in star_query])
+                score = sum([self.v_uri_scores[subj] + predicate[2] for subj, predicate in star_query])
 
                 triple = [f'?var <{predicate[0]}> <{v_uri}>' if predicate[1] else f'<{v_uri}> <{predicate[0]}> ?var'
                           for v_uri, predicate in star_query]
 
                 query = f"SELECT * WHERE {{ {' . '.join(triple)} }}"
-                self.question.add_possible_answer(question=self.question.text, sparql=query, score=score)
+                self.__question.add_possible_answer(sparql=query, score=score)
 
     def __evaluate_star_queries(self):
-        self.question.possible_answers.sort(reverse=True)
-        # for i, possible_answer in enumerate(self.question.possible_answers):
-        #     print(i, possible_answer.sparql, possible_answer.score)
-        qc = count(1)
-        sparqls = list()
-        for i, possible_answer in enumerate(self.question.possible_answers[:self._n_max_answers]):
+        self.__question.possible_answers.sort(reverse=True)
+        for i, possible_answer in enumerate(self.__question.possible_answers[:self._n_max_answers]):
             logger.info(f"[EVALUATING SPARQL:] {possible_answer.sparql}")
             result = _evaluate_SPARQL_query(possible_answer.sparql)
-            logger.info(f"[POSSIBLE SPARQLs WITH ANSWER (SORTED):] {possible_answer.sparql}")
-            try:
-                v_result = json.loads(result)
-                possible_answer.update(results=v_result['results'], vars=v_result['head']['vars'])
-                answers = list()
-                for binding in v_result['results']['bindings']:
-                    answer = self.__class__.__extract_resource_name_from_uri(binding['var']['value'])[0]
-                    answers.append(answer)
-                else:
-                    if v_result['results']['bindings']:
-                        logger.info(f"[POSSIBLE ANSWER {i}:] {answers}")
-                    sparqls.append(possible_answer.sparql)
-            except:
-                print(f" >>>>>>>>>>>>>>>>>>>> What the hell [{result}] <<<<<<<<<<<<<<<<<<")
-        else:
-            self.question.sparqls = sparqls
-
-    @property
-    def question(self):
-        return self._current_question
-
-    @question.setter
-    def question(self, value: str):
-        self._current_question = Question(question_text=value)
+            possible_answer.update_answers_element(result)
 
     @staticmethod
     def __extract_resource_name(result_bindings):
@@ -355,5 +334,3 @@ class Wise:
 if __name__ == '__main__':
     my_wise = Wise()
     my_wise.ask(question_text='Which movies starring Brad Pitt were directed by Guy Ritchie?', n_max_answers=1)
-
-

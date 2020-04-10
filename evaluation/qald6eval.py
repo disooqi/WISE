@@ -13,9 +13,10 @@ __email__ = "mohamed@eldesouki.ca"
 __status__ = "debug"
 __created__ = "2020-03-11"
 
+
 import json
 import time
-from wise.wise import Wise
+from src.wise import Wise
 from termcolor import colored, cprint
 from itertools import count
 import xml.etree.ElementTree as Et
@@ -47,7 +48,7 @@ if __name__ == '__main__':
         #     continue
 
         qc = next(count39)
-        if question["id"] != 1:
+        if question["id"] != 8:
             continue
 
         # question_text = ''
@@ -63,28 +64,14 @@ if __name__ == '__main__':
         st = time.time()
         # question_text = 'Which movies starring Brad Pitt were directed by Guy Ritchie?'
         # question_text = 'When did the Boston Tea Party take place and led by whom?'
-        answers = WISE.ask(question_text=question_text, answer_type=question['answertype'], n_max_answers=5)
-
-        all_bindings = list()
-        for answer in answers:
-            if answer['results'] and answer['results']['bindings']:
-                all_bindings.extend(answer['results']['bindings'])
-
-        try:
-            if 'results' in question['answers'][0]:
-                question['answers'][0]['results']['bindings'] = all_bindings.copy()
-                wise_qald6['questions'].append(question)
-                all_bindings.clear()
-        except:
-            question['answers'] = []
+        answers = WISE.ask(question_id=question["id"], question_text=question_text, answer_type=question['answertype'],
+                           n_max_answers=5, merge_answers=True)
 
         et = time.time()
         text = colored(f'[DONE!! in {et-st:.2f} SECs]', 'green', attrs=['bold', 'reverse', 'blink', 'dark'])
         cprint(f"== {text} ==")
 
-        break
-
     with open(f'output/WISE_result_{timestr}.json', encoding='utf-8', mode='w') as rfobj:
-        json.dump(wise_qald6, rfobj)
+        json.dump(answers, rfobj)
         rfobj.write('\n')
 

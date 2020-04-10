@@ -13,7 +13,11 @@ __email__ = "mohamed@eldesouki.ca"
 __status__ = "debug"
 __created__ = "2020-03-05"
 
+import json
 import logging
+import copy
+from functools import reduce
+from collections import defaultdict
 import networkx as nx
 from .nlp.relation import RelationLabeling
 from transitions.core import MachineError
@@ -34,7 +38,7 @@ class Question:
     types = ('person', 'price', 'count', 'date')  # it should be populated by the types of ontology
     datatypes = ('number', 'date', 'string', 'boolean', 'resource', 'list')
 
-    def __init__(self, question_text, question_id=None, answer_datatype=None):
+    def __init__(self, question_text: str, question_id: int = None, answer_datatype: str = None):
         self.tokens = list()
         self._id = question_id
         self._question_text = question_text
@@ -50,7 +54,21 @@ class Question:
         # bisect.insort(self._possible_answers, Answer(**kwargs))  # it is not going to work because some answers are
         # inserted without score at first
 
-        self._possible_answers.append(Answer(**kwargs))
+        q = {"language": "en", "string": self._question_text, "keywords": ""}
+        self._possible_answers.append(Answer(_id=self._id, question=q, answertype=self._answer_datatype, **kwargs))
+
+    def format_answers(self, merge_answers):
+        # TODO: you should remove duplicates when you merge
+        answers = list(filter(lambda a: a['answers'], map(lambda a: a.as_dict, self._possible_answers)))
+        if not merge_answers or not answers:
+            return answers
+        answer_template = copy.deepcopy(answers[0])
+        answer_template['answers'][0]['results']['bindings'].clear()
+        for answer in answers:
+            answer_template['answers'][0]['results']['bindings'].extend(answer['answers'][0]['results']['bindings'])
+
+        else:
+            return answer_template
 
     @property
     def possible_answers(self):
@@ -85,12 +103,6 @@ class Question:
     def text(self):
         return self._question_text
 
-    def get_entities(self):
-        pass
-
-    def get_relations(self):
-        pass
-
     def __process(self):
         self.__parse_sentence()
         self.__regroup_named_entities()
@@ -113,7 +125,7 @@ class Question:
 
         for i, w, h, d, p, pos, t in words_info:
             self.tokens.append({'index': i, 'token': w, 'head': h, 'dependency': d, 'position': p,
-                                         'pos-tag': pos, 'ne-tag': t})
+                                'pos-tag': pos, 'ne-tag': t})
 
     def __regroup_named_entities(self):
         l2 = list()
@@ -204,7 +216,8 @@ class Question:
             #     continue
 
             if token['ne-tag'] != "O":
-                s.append((token['index'], token['token'], token['head'], token['dependency'], token['position'], token['pos-tag'], token['ne-tag']))
+                s.append((token['index'], token['token'], token['head'], token['dependency'], token['position'],
+                          token['pos-tag'], token['ne-tag']))
             elif 'subj' in token['dependency'] or 'obj' in token['dependency']:
                 self.add_possible_answer_type(token['token'])
         else:
@@ -224,40 +237,49 @@ class Question:
 
 
 class Answer:
-    def __init__(self, **kwargs):
-        self._answer = dict({
-            "id": id(self),
-            "question": None,
-            # "question_id": kwargs['question_id'],  # question_id
-            "results": None,  # here are the bindings returned from the triple store
-            "status": None,  # same as the http request status, and actually it does not make sense and I might remove
-            "vars": None,
-            "sparql": None
-        })
-        for key, value in kwargs.items():
-            self._answer[key] = value
+    def __init__(self, _id: int = 0, answertype: str = None, aggregation: bool = False, onlydbo: bool = False,
+                 hybrid: bool = False, question: dict = None, sparql: str = None, score: float = 0):
+        # keys = ["id", "answertype", "aggregation", "onlydbo", "hybrid", "question", "query", "answers"]
+        self.question = [question]
+
+        self.__answer = {
+            "id": _id,
+            "answertype": answertype,
+            "aggregation": aggregation,
+            "onlydbo": onlydbo,
+            "hybrid": hybrid,
+            "question": self.question,
+            "score": score,
+            "query": {"sparql": sparql},
+            "answers": []
+        }
+        # print(self.__answer)
 
     def __lt__(self, other):
-        return self.score < other.score
+        return self.__answer['score'] < other.__answer['score']
 
-    def update(self, **kwargs):
-        for key, value in kwargs.items():
-            self._answer[key] = value
+    def update_answers_element(self, triple_store_response):
 
-    def json(self):
-        return self._answer
+        # TODO case 1: what if response got no answer
+        result = json.loads(triple_store_response)
+        answer = defaultdict(dict)
+        try:
+            answer['head']['vars'] = result['head']['vars']
+            if not result['results']['bindings']:
+                return
+            answer['results']['bindings'] = result['results']['bindings']
+        except KeyError:
+            return
+
+        self.__answer['answers'].append(answer)
 
     @property
     def sparql(self):
-        return self._answer['sparql']
+        return self.__answer['query']['sparql']
 
     @property
-    def score(self):
-        return self._answer['score']
-
-    @sparql.setter
-    def sparql(self, value):
-        self._answer['sparql'] = value
+    def as_dict(self):
+        return self.__answer
 
 
 if __name__ == '__main__':
