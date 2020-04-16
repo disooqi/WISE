@@ -1,6 +1,6 @@
-<div align="center">
-  <img src="https://github.com/CoDS-GCS/WISE/blob/dev/logo.png" />
-</div>
+<p align="center">
+  <img width="460" height="200" src="https://user-images.githubusercontent.com/1148046/79498304-14c00680-7ff7-11ea-9b68-a4749138ce25.png">
+</p>
 
 * WISE has been developed using Python 3.7
 * Make sure you create a virtual environment, activated it and the thin pip install the requirement.txt file comes with the project. 
