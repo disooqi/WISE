@@ -54,13 +54,9 @@ libxml2-dev libxslt1-dev libcurl4-openssl-dev software-properties-common libffi-
 MacOS
 ------------------
 `brew install rbenv`
-
 `rbenv install 2.7.0`
-
 `rbenv global 2.7.0`
-
 `gem install bundler --user-install`
-
 `gem install nokogiri mustache multiset --user-install`
 
 ------------------
