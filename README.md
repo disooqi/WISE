@@ -15,6 +15,8 @@ To evaluate the system on QALD dataset.
 
 QALD 6 or Later
 ------------------
+Ubuntu
+------------------
 `sudo apt-get remove --purge ruby-full`
 
 `sudo apt-get update`
@@ -48,6 +50,19 @@ libxml2-dev libxslt1-dev libcurl4-openssl-dev software-properties-common libffi-
 
 `gem install nokogiri mustache multiset`
 
+------------------
+MacOS
+------------------
+`brew install rbenv`
+
+`rbenv install 2.7.0`
+
+`rbenv global 2.7.0`
+
+`gem install bundler --user-install`
+
+`gem install nokogiri mustache multiset --user-install`
+------------------
 `git clone https://github.com/ag-sc/QALD.git`
 
 Rename `QALD/6/data/qald-6-test-multilingual.json` into `QALD/6/data/dbpedia-test.json`
