@@ -62,6 +62,7 @@ MacOS
 `gem install bundler --user-install`
 
 `gem install nokogiri mustache multiset --user-install`
+
 ------------------
 `git clone https://github.com/ag-sc/QALD.git`
 
