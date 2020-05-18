@@ -16,7 +16,7 @@ __created__ = "2020-03-11"
 
 import json
 import time
-from src.wise import Wise
+from wise import Wise
 from termcolor import colored, cprint
 from itertools import count
 import xml.etree.ElementTree as Et
@@ -41,37 +41,38 @@ if __name__ == '__main__':
         qald6_testset = json.load(f)
     dataset_id = qald6_testset['dataset']['id']
     WISE = Wise()
-    count39 = count(1)
+    counter = count(1)
     wise_qald6 = {"dataset": {"id": "qald-6-test-multilingual"}, "questions": []}
     for i, question in enumerate(qald6_testset['questions']):
         # if question['id'] not in the_39_question_ids:
         #     continue
 
-        qc = next(count39)
-        if question["id"] != 8:
+        qc = next(counter)
+        if question["id"] != 1:
             continue
 
         # question_text = ''
         for language_variant_question in question['question']:
             if language_variant_question['language'] == 'en':
                 question_text = language_variant_question['string'].strip()
+                text = colored(f"[PROCESSING: ] Question count: {qc}, ID {question['id']}  >>> {question_text}", 'blue',
+                               attrs=['reverse', 'blink'])
+                cprint(f"== {text}  ")
                 break
-
-        text = colored(f"[PROCESSING: ] Question count: {qc}, ID {question['id']}  >>> {question_text}", 'blue',
-                       attrs=['reverse', 'blink'])
-        cprint(f"== {text}  ")
 
         st = time.time()
         # question_text = 'Which movies starring Brad Pitt were directed by Guy Ritchie?'
         # question_text = 'When did the Boston Tea Party take place and led by whom?'
         answers = WISE.ask(question_id=question["id"], question_text=question_text, answer_type=question['answertype'],
                            n_max_answers=5, merge_answers=True)
+        if answers:
+            wise_qald6["questions"].append(answers)
 
         et = time.time()
         text = colored(f'[DONE!! in {et-st:.2f} SECs]', 'green', attrs=['bold', 'reverse', 'blink', 'dark'])
         cprint(f"== {text} ==")
 
     with open(f'output/WISE_result_{timestr}.json', encoding='utf-8', mode='w') as rfobj:
-        json.dump(answers, rfobj)
+        json.dump(wise_qald6, rfobj)
         rfobj.write('\n')
 
