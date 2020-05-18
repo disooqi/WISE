@@ -237,6 +237,8 @@ class Question:
 
 
 class Answer:
+    __slots__ = ('question', '__answer')
+
     def __init__(self, _id: int = 0, answertype: str = None, aggregation: bool = False, onlydbo: bool = False,
                  hybrid: bool = False, question: dict = None, sparql: str = None, score: float = 0):
         # keys = ["id", "answertype", "aggregation", "onlydbo", "hybrid", "question", "query", "answers"]
@@ -280,6 +282,11 @@ class Answer:
     @property
     def as_dict(self):
         return self.__answer
+
+    def __del__(self):
+        # The destructor
+        # This magic method is not called when "del" used, it is called when the refcount reaches 0
+        pass
 
 
 if __name__ == '__main__':
