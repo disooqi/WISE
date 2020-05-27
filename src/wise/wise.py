@@ -67,7 +67,7 @@ class Wise:
         self.__question = None
         self.n_max_Vs = 2
         self.n_max_Es = 3
-        self.v_uri_scores = defaultdict(float)
+        self.v_uri_scores = None
 
     def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int = None,
             answer_format: str = 'qald', merge_answers: bool = False, n_max_query_eval: int = 10):
@@ -89,6 +89,7 @@ class Wise:
         "bool", "number".
         :rtype: A :class:`dict <dict>`
         """
+        self.v_uri_scores = defaultdict(float)
         self.__question = Question(question_id=question_id, question_text=question_text)
 
         if answer_type:
