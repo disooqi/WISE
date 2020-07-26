@@ -105,7 +105,7 @@ class Wise:
         self.__generate_star_queries()
         self.__evaluate_star_queries()
 
-        answers = self.__question.format_answers(merge_answers)
+        answers = self.__question.format_answers(merge_answers)[:self._n_max_answers]
 
         logger.info(f"\n\n\n{'#' * 120}")
         return answers
@@ -261,7 +261,7 @@ class Wise:
 
     def __evaluate_star_queries(self):
         self.__question.possible_answers.sort(reverse=True)
-        for i, possible_answer in enumerate(self.__question.possible_answers[:self._n_max_answers]):
+        for i, possible_answer in enumerate(self.__question.possible_answers[:self._n_max_answers]):  # _n_max_eval
             logger.info(f"[EVALUATING SPARQL:] {possible_answer.sparql}")
             result = _evaluate_SPARQL_query(possible_answer.sparql)
             possible_answer.update_answers_element(result)

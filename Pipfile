@@ -20,6 +20,8 @@ termcolor = "==1.1.0"
 gensim = "==3.8.1"
 requests = "*"
 graphviz = "*"
+flask = "*"
+flask-wtf = "*"
 
 [requires]
 python_version = "3.7"

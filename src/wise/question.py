@@ -59,9 +59,11 @@ class Question:
 
     def format_answers(self, merge_answers):
         # TODO: you should remove duplicates when you merge
-        answers = list(filter(lambda a: a['answers'], map(lambda a: a.as_dict, self._possible_answers)))
-        if not merge_answers or not answers:
+        if not merge_answers:
+            answers = list(map(lambda a: a.as_dict, self._possible_answers))
             return answers
+
+        answers = list(filter(lambda a: a['answers'], map(lambda a: a.as_dict, self._possible_answers)))
         answer_template = copy.deepcopy(answers[0])
         answer_template['answers'][0]['results']['bindings'].clear()
         for answer in answers:
@@ -267,8 +269,8 @@ class Answer:
         answer = defaultdict(dict)
         try:
             answer['head']['vars'] = result['head']['vars']
-            if not result['results']['bindings']:
-                return
+            # if not result['results']['bindings']:
+            #     return
             answer['results']['bindings'] = result['results']['bindings']
         except KeyError:
             return

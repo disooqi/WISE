@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
+    <meta name="generator" content="Jekyll v3.8.6">
+    <title>Checkout example · Bootstrap</title>
+
+    <link rel="canonical" href="https://getbootstrap.com/docs/4.4/examples/checkout/">
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+          integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+
+    <style>
+        .bd-placeholder-img {
+            font-size: 1.125rem;
+            text-anchor: middle;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        @media (min-width: 768px) {
+            .bd-placeholder-img-lg {
+                font-size: 3.5rem;
+            }
+        }
+    </style>
+    <!-- Custom styles for this template -->
+    <link href="{{ url_for('static', filename='form-validation.css') }}" rel="stylesheet">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-md navbar-light bg-white fixed-top">
+    <a class="navbar-brand" href="/"><img class="navbar-brand" src="{{ url_for('static', filename='WISE.png') }}"
+                                          width="72"
+                                          alt="thumbnail"></a>
+
+
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault"
+            aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+        <ul class="navbar-nav mr-auto">
+            <!--            <li class="nav-item active">-->
+            <!--                <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">Home <span class="sr-only">(current)</span></a>-->
+            <!--            </li>-->
+            <!--            <li class="nav-item">-->
+            <!--                <a class="nav-link" href="#">Research</a>-->
+            <!--            </li>-->
+            <!--            <li class="nav-item">-->
+            <!--                <a class="nav-link" href="#">About</a>-->
+            <!--            </li>-->
+        </ul>
+        <form class="form-inline my-2 my-lg-0">
+            {# <input class="form-control mr-sm-2" type="text" placeholder="Search" aria-label="Search">#}
+            {#
+            <button class="btn btn-secondary my-2 my-sm-0" type="submit">Search</button>
+            #}
+            <select class="form-control mr-sm-2 custom-select custom-select-sm" id="inputGroupSelect02">
+                <option value="1" selected>DBpedia</option>
+                <option value="2" disabled>Wikidata</option>
+                <option value="3" disabled>Bio2rdf</option>
+            </select>
+        </form>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <br/>
+    <br/>
+    <div class="row mt-5">
+<!--        <div class="col-md-3 order-md-2 mb-4">-->
+<!--            <h4 class="d-flex justify-content-between align-items-center mb-3">-->
+<!--                <span class="text-muted">Entities</span>-->
+<!--                <span class="badge badge-secondary badge-pill">1</span>-->
+<!--            </h4>-->
+<!--            <div class="card">-->
+<!--                <img src="{{ url_for('static', filename='Boston_Tea_Party_w.jpg') }}" class="card-img-top"-->
+<!--                     alt="thumbnail">-->
+<!--                <div class="card-body">-->
+<!--                    <h5 class="card-title"> Boston Tea Party</h5>-->
+<!--                    <p class="card-text">The Boston Tea Party (initially referred to by John Adams as "the Destruction-->
+<!--                        of the Tea in Boston") was a political protest by the Sons of Liberty in Boston, on December 16,-->
+<!--                        1773....</p>-->
+<!--                    <a href="http://dbpedia.org/page/Boston_Tea_Party" target="_blank" class="btn btn-primary">Read-->
+<!--                        more</a>-->
+<!--                </div>-->
+<!--            </div>-->
+<!--        </div>-->
+        <div class="offset-md-1  col-md-6 order-md-1">
+            <form class="form-search" method="POST" action="">
+                {{ form.hidden_tag() }}
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="input-group mb-3">
+                            {% if form.question.errors %}
+                            {{ form.question(class="form-control is-invalid", autofocus="")}}
+                            <div class="input-group-append">
+                                {{ form.search(class="btn btn-outline-primary") }}
+                            </div>
+                            <div class="invalid-feedback">
+                                {% for error in form.question.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                                {{ form.question(class="form-control", autofocus="")}}
+                                <div class="input-group-append">
+                                    {{ form.search(class="btn btn-outline-primary") }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </form>
+            {% if answers %}
+            <h4 class="mb-3">Results</h4>
+            <form class="needs-validation" novalidate>
+                {% for answer in answers %}
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <div class="card ">
+                            <div class="card-body">
+                                <h5 class="card-title">Possible Answer {{loop.index}}
+                                    {# {{ answer['question'][0]['string'] }} #}
+                                    <button class="btn btn-outline-secondary float-right" type="button"
+                                            data-toggle="collapse"
+                                            data-target="#multiCollapse{{loop.index}}" aria-expanded="false"
+                                            aria-controls="multiCollapse{{loop.index}}">SPARQL
+                                    </button>
+                                </h5>
+                                {# <p class="card-text">With supporting text below as a natural lead-in to additional#}
+                                {# content.</p>#}
+                                <p>
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                    <tr>
+                                        <th scope="col">#</th>
+                                        <th scope="col">?{{ answer['answers'][0]['head']['vars'][0] }}</th>
+
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+
+                                    {% if answer['answers'][0]['results']['bindings'] %}
+
+                                    {% for binding in answer['answers'][0]['results']['bindings'] %}
+                                    <tr>
+                                        <th scope="row">{{loop.index}}</th>
+                                        <td><a href="{{ binding['var']['value'] }}" target="_blank">{{
+                                            binding['var']['value'] }}</a></td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% else %}
+                                    <tr>
+                                        <th scope="row">-</th>
+                                        <td>No bindings available for the SPARQL.</td>
+                                    </tr>
+                                    {% endif %}
+                                    </tbody>
+                                </table>
+                                </p>
+                                <div class="row">
+                                    <div class="col">
+                                        <div class="collapse multi-collapse" id="multiCollapse{{loop.index}}">
+                                            <div class="card card-body">
+                                                <footer class="blockquote-footer">
+                                                    {{ answer['query']['sparql'] }}
+                                                </footer>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                            <!--                            <div class="card-footer text-muted ">-->
+                            <!--                                <span class="float-left">-->
+                            <!--                                Are you satisfied? <button type="button" class="btn btn-outline-success">Yes</button>-->
+                            <!--                                    <button type="button" class="btn btn-outline-danger">No</button></span>-->
+                            <!--                            </div>-->
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </form>
+            {% else %}
+            <h4 class="mb-3">No Result</h4>
+            {% endif %}
+
+
+        </div>
+    </div>
+
+    <footer class="my-5 pt-5 text-muted text-center text-small">
+        <p class="mb-1">&copy; 2020 CODS LAB - GINA CODY SCHOOL OF ENGINEERING AND COMPUTER SCIENCE</p>
+        <p class="mb-1">Montreal, QC, Canada</p>
+        <ul class="list-inline">
+            <li class="list-inline-item"><a href="#">CODS LAB</a></li>
+            <li class="list-inline-item"><a href="#">ENCS</a></li>
+            <li class="list-inline-item"><a href="#">Concordia University</a></li>
+        </ul>
+    </footer>
+</div>
+<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+        integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
+        crossorigin="anonymous"></script>
+<script>window.jQuery || document.write('<script src="/docs/4.4/assets/js/vendor/jquery.slim.min.js"><\/script>')</script>
+<script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"
+        integrity="sha384-6khuMg9gaYr5AxOqhkVIODVIvm9ynTT5J4V1cfthmT+emCG6yVmEZsRHdxlotUnm"
+        crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='form-validation.js') }}"></script>
+</body>
+</html>

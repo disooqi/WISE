@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<main role="main" class="container">
+
+    <div class="starter-template">
+        {# <h1>Bootstrap starter template</h1>#}
+        {# <p class="lead">Use this document as a way to quickly start any new project.<br> All you get is this text#}
+        {# and a mostly barebones HTML document.</p>#}
+        <img class="mb-4" src="{{ url_for('static', filename='WISE.png') }}" alt="WISE LOGO" width="50%"
+             class="img-fluid">
+        <br/>
+        {#
+        <div class="search-box">#}
+            {# <input type="text" placeholder=" "/><span></span>#}
+            {#
+        </div>
+        #}
+        <div class="mt-4 col-md-12">
+            <form class="needs-validation" method="POST" action="" novalidate>
+                {{ form.hidden_tag() }}
+                <div class="form-row">
+                    <div class="col-md-9 mb-9">
+                        {{ form.question.label(for="question") }}
+                        {% if form.question.errors %}
+                        {{ form.question(class="form-control is-invalid", placeholder="Ask your question?",
+                        autofocus="")}}
+                        <div class="invalid-tooltip">
+                            {% for error in form.question.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        {{ form.question(class="form-control ", placeholder="Ask your question?", autofocus="")}}
+                        {% endif %}
+
+                    </div>
+                    <div class="col-md-1 mb-1">
+                        {{ form.n_answers.label(for="n_answers") }}
+                        {% if form.n_answers.errors %}
+                        {{ form.n_answers(class="form-control is-invalid")}}
+                        <div class="invalid-tooltip">
+                            {% for error in form.n_answers.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        {{ form.n_answers(class="form-control ")}}
+                        {% endif %}
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <label for="validationTooltip04">KG</label>
+                        <select class="custom-select" id="validationTooltip04" required>
+                            <option value="1" selected>DBpedia</option>
+                            <option value="2" disabled>Wikidata</option>
+                            <option value="3" disabled>Bio2rdf</option>
+                        </select>
+                        <div class="invalid-tooltip">
+                            Please select a valid KG.
+                        </div>
+                    </div>
+                </div>
+                {{ form.search(class="btn btn-outline-secondary", id="buttonSearch") }}
+            </form>
+        </div>
+    </div>
+
+</main><!-- /.container -->
+
+{% endblock content %}
