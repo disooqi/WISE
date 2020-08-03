@@ -26,3 +26,39 @@ and then create an instance as following:
 and then
  
  ``answers = wisely.ask("Who was the doctoral supervisor of Albert Einstein?")``
+ 
+ Install WISE
+ ------------
+ 
+1) Install Python 3.7
+
+2) Clone WISE into some directory. Lets call it <wise_home> 
+
+``git clone https://github.com/CoDS-GCS/WISE.git wise``
+
+3) copy file wiki-news-300d-1M.txt into directory <wise_home>/word_embedding/ 
+
+4) check out branch that uses the new version of AllenNLP
+
+``git checkout allennlp-1.0.0``
+
+5) Installing pipenv 
+
+``pip install --user pipenv
+echo 'export PIPENV_VENV_IN_PROJECT=1' >> ~/.bashrc``
+
+You might need to restart the system.
+
+6) change directory into <wise_home>, and run the following:
+
+``pipenv install``
+
+7) Run the word embedding server
+
+``pipenv run python word_embedding/server.py 127.0.0.1 9600``
+
+8) To run evaluation over QALD 9, change directory into "<wise_home>/evaluation", and then run the following into in the shell:
+
+``export PYTHONPATH="<wise_home>"``
+
+``pipenv run  python qald9eval.py``
