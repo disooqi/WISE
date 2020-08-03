@@ -15,6 +15,7 @@ __created__ = "2020-03-30"
 from allennlp.predictors.predictor import Predictor
 import allennlp_models.tagging
 import allennlp_models.structured_prediction
+
 from nltk.stem import WordNetLemmatizer
 import nltk
 
@@ -30,5 +31,7 @@ ner = Predictor.from_path("https://storage.googleapis.com/allennlp-public-models
 #     "https://s3-us-west-2.amazonaws.com/allennlp/models/biaffine-dependency-parser-ptb-2018.08.23.tar.gz")
 parser = Predictor.from_path(
     "https://storage.googleapis.com/allennlp-public-models/biaffine-dependency-parser-ptb-2020.04.06.tar.gz")
+constituency = Predictor.from_path(
+    "https://storage.googleapis.com/allennlp-public-models/elmo-constituency-parser-2020.02.10.tar.gz")
 nltk.download('wordnet')
 lemmatizer = WordNetLemmatizer()

@@ -39,9 +39,18 @@ if __name__ == '__main__':
     counter = count(1)
     wise_qald6 = {"dataset": {"id": "qald-9-test-multilingual"}, "questions": []}
     WISE = Wise()
-
+    excluded = ['167']
+    start = True
     for i, question in enumerate(qald6_testset['questions']):
-        if question['id'] not in ['99', '98']:
+        if not start:
+            if question['id'] == '167':
+                start = True
+            continue
+
+
+        # if question['id'] not in ['167']:
+        #     continue
+        if question['id'] in excluded:
             continue
         qc = next(counter)
 
@@ -61,8 +70,8 @@ if __name__ == '__main__':
         # question_text = 'When did the Boston Tea Party take place and led by whom?'
         # question_text = 'Who was the doctoral supervisor of Albert Einstein?'
         answers = WISE.ask(question_id=question["id"], question_text=question_text, answer_type=question['answertype'],
-                           n_max_answers=5, merge_answers=True)
-        answers = ''
+                           n_max_answers=39, merge_answers=True)
+        # answers = ''
         if answers:
             wise_qald6["questions"].append(answers)
         else:

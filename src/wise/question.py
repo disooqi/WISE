@@ -22,7 +22,7 @@ import networkx as nx
 from .nlp.relation import RelationLabeling
 from transitions.core import MachineError
 from .nlp.utils import traverse_tree, table, punctuation
-from .nlp.models import ner, parser
+from .nlp.models import ner, parser, constituency
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -111,10 +111,11 @@ class Question:
     def __parse_sentence(self):
         allannlp_ner_output = ner.predict(sentence=self._question_text)
         allannlp_dep_output = parser.predict(sentence=self._question_text)
+        allannlp_cst_output = constituency.predict(sentence=self._question_text)
 
         words = allannlp_ner_output['words']
         ner_tags = allannlp_ner_output['tags']
-        pos_tags = allannlp_dep_output['pos']
+        pos_tags = allannlp_cst_output['pos_tags']
         dependencies = allannlp_dep_output['predicted_dependencies']
         heads = allannlp_dep_output['predicted_heads']
         # d = reformat_allennlp_ner_output(ner_tags, words)
@@ -202,6 +203,7 @@ class Question:
                 tok = token['token']
                 eval(f'relation_labeling.{pos.replace("$", "_")}("{tok}", "{token["pos-tag"]}")')
             except AttributeError as ae:
+                print(f"MachineError: {ae}")
                 relation_labeling.flush_relation()
             except MachineError as me:
                 print(f"MachineError: {me}")

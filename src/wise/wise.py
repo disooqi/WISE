@@ -65,8 +65,8 @@ class Wise:
         self._ss_server = semantic_affinity_server
         self._n_max_answers = n_max_answers  # this should affect the number of star queries to be executed against TS
         self.__question = None
-        self.n_max_Vs = 2
-        self.n_max_Es = 3
+        self.n_max_Vs = 1
+        self.n_max_Es = 15
         self.v_uri_scores = None
 
     def ask(self, question_text: str, question_id: int = 0, answer_type: str = None, n_max_answers: int = None,
